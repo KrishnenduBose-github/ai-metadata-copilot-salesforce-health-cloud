@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Stores one Health Cloud security audit run.</description>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>true</enableHistory>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
+    <label>Security Audit Run</label>
+    <nameField>
+        <displayFormat>SAR-{00000}</displayFormat>
+        <label>Security Audit Run Number</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Security Audit Runs</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

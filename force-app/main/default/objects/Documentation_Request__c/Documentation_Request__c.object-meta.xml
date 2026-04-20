@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Stores generated documentation requests and results.</description>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>true</enableHistory>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
+    <label>Documentation Request</label>
+    <nameField>
+        <displayFormat>DR-{00000}</displayFormat>
+        <label>Documentation Request Number</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Documentation Requests</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

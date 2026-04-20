@@ -1,0 +1,64 @@
+<template>
+    <lightning-card title="Metadata Navigator" icon-name="utility:search">
+        <div class="wrapper">
+            <div class="actions">
+                <lightning-button
+                    label="Refresh Metadata Index"
+                    variant="brand"
+                    onclick={handleRefresh}
+                    disabled={isLoading}
+                ></lightning-button>
+            </div>
+
+            <template if:true={refreshMessage}>
+                <div class="message success-message">{refreshMessage}</div>
+            </template>
+
+            <template if:true={errorMessage}>
+                <div class="message error-message">{errorMessage}</div>
+            </template>
+
+            <div class="search-form">
+                <lightning-combobox
+                    name="queryType"
+                    label="Search Type"
+                    value={queryType}
+                    options={queryTypeOptions}
+                    onchange={handleQueryTypeChange}
+                ></lightning-combobox>
+
+                <lightning-input
+                    name="queryText"
+                    label="API Name"
+                    value={queryText}
+                    onchange={handleQueryTextChange}
+                    placeholder="Example: Account.Industry or Account"
+                ></lightning-input>
+
+                <lightning-button
+                    label="Run Search"
+                    variant="brand-outline"
+                    onclick={handleSearch}
+                    disabled={isLoading}
+                ></lightning-button>
+            </div>
+
+            <template if:true={hasSummary}>
+                <div class="summary-box">
+                    <p><strong>Impact Level:</strong> {impactLevel}</p>
+                    <p><strong>Matches:</strong> {matchCount}</p>
+                    <p><strong>Summary:</strong> {summary}</p>
+                </div>
+            </template>
+
+            <template if:true={hasRows}>
+                <lightning-datatable
+                    key-field="usageId"
+                    data={rows}
+                    columns={columns}
+                    hide-checkbox-column
+                ></lightning-datatable>
+            </template>
+        </div>
+    </lightning-card>
+</template>
