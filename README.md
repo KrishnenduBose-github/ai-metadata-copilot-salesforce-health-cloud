@@ -2,516 +2,433 @@
 
 Salesforce-native internal AI copilot project for Health Cloud metadata search, impact analysis, security auditing, deployment comparison, documentation generation, and optimization scanning.
 
-This project is designed for:
+This project is built for:
 - Salesforce Admins
 - Salesforce Developers
 - Solution Architects
 - Release Managers
 
-It is built to stay inside the Salesforce ecosystem:
+This solution stays inside the Salesforce ecosystem:
 - Agentforce
 - Prompt Builder
 - Apex
-- LWC
+- Lightning Web Components
 - Tooling API
 - Named Credentials
 - Einstein Trust Layer
 
 No external AI providers are used.
 
-## 1. What This Project Does
+## 1. Project Goal
 
-This project started as a simple metadata navigator and evolved into an enterprise pilot foundation for an AI Metadata Copilot.
+This project helps teams ask Salesforce metadata questions in plain English and get grounded, explainable results.
 
-The project can:
-- refresh and index Salesforce metadata into custom objects
-- find where fields and objects are used
-- generate impact summaries
-- run Health Cloud-oriented security audits
-- compare metadata snapshots for deployment readiness
-- generate simple grounded documentation
-- run optimization scans for cleanup candidates
+It is designed to answer questions like:
+- Where is `Patient_Status__c` used?
+- What breaks if I rename `Contact.Email`?
+- Which permission sets expose sensitive Health Cloud fields?
+- What should I test before deployment?
+- Can I explain this Apex class or flow to a beginner teammate?
 
-## 2. Current Project Structure
-
-Project root:
+## 2. Project Root
 
 ```text
 D:\Salesforce Metadata Navigator MVP
 ```
 
-Main folders:
+Main source folders:
 - `force-app/main/default/classes`
 - `force-app/main/default/lwc`
 - `force-app/main/default/objects`
 - `docs`
 
-Main config:
-- [`sfdx-project.json`](D:\Salesforce%20Metadata%20Navigator%20MVP\sfdx-project.json)
+Main Salesforce DX config:
+- [`sfdx-project.json`](D:\Salesforce Metadata Navigator MVP\sfdx-project.json)
 
-## 3. End-to-End Flow
+## 3. Beginner-Friendly Architecture
+
+Think of this project as 7 connected layers:
+
+1. Tooling API extraction layer
+   Reads metadata from Salesforce.
+
+2. Normalization layer
+   Converts raw Tooling API responses into a clean internal format.
+
+3. Storage layer
+   Stores metadata snapshots, versions, usages, audit findings, deployment findings, and optimization findings.
+
+4. Search and analysis layer
+   Runs metadata search, dependency checks, impact analysis, and explainability.
+
+5. Governance layer
+   Runs security review, deployment comparison, documentation generation, and optimization scans.
+
+6. AI orchestration layer
+   Provides structured Apex actions that Agentforce and Prompt Builder can call.
+
+7. Experience layer
+   Shows everything in Lightning through LWC workspaces.
+
+## 4. End-to-End Flow Diagram
 
 ```mermaid
 flowchart TD
-    A[User opens Lightning App Page] --> B[aiMetadataCopilotWorkspace LWC]
-    B --> C[AiMetadataCopilotController Apex]
-    C --> D[AiAgentActionService]
+    A["User opens Lightning App Page"] --> B["aiMetadataCopilotWorkspace LWC"]
+    B --> C["AiMetadataCopilotController"]
+    C --> D["AiAgentActionService"]
 
-    D --> E[Metadata Extraction Orchestrator]
-    E --> F[Tooling API via Named Credential]
-    F --> G[MetadataExtractionService]
-    G --> H[MetadataIndexerService]
-    H --> I[Metadata_Item__c]
-    G --> J[MetadataSnapshotService]
-    J --> K[Metadata_Snapshot__c]
-    J --> L[Metadata_Component_Version__c]
-    H --> M[MetadataUsageAnalyzerService]
-    M --> N[Metadata_Usage__c]
+    D --> E["MetadataExtractionOrchestrator"]
+    E --> F["MetadataToolingApiClient"]
+    F --> G["Salesforce Tooling API"]
+    G --> H["MetadataExtractionService"]
+    H --> I["MetadataNormalizationService"]
+    I --> J["MetadataIndexerService"]
+    J --> K["Metadata_Item__c"]
+    I --> L["MetadataSnapshotService"]
+    L --> M["Metadata_Snapshot__c"]
+    L --> N["Metadata_Component_Version__c"]
+    J --> O["MetadataUsageAnalyzerService"]
+    O --> P["Metadata_Usage__c"]
 
-    D --> O[MetadataSearchService]
-    D --> P[MetadataImpactAnalysisService]
-    D --> Q[SecurityAuditOrchestrator]
-    D --> R[DeploymentRiskAssessmentService]
-    D --> S[MetadataDocumentationService]
-    D --> T[Optimization Scanners]
+    D --> Q["MetadataSearchService"]
+    D --> R["MetadataImpactAnalysisService"]
+    D --> S["SecurityAuditOrchestrator"]
+    D --> T["DeploymentRiskAssessmentService"]
+    D --> U["MetadataDocumentationService"]
+    D --> V["Optimization Scanners"]
 
-    Q --> U[Security_Audit_Run__c]
-    Q --> V[Security_Finding__c]
-    R --> W[Deployment_Assessment__c]
-    R --> X[Deployment_Finding__c]
-    S --> Y[Documentation_Request__c]
-    T --> Z[Optimization_Finding__c]
+    S --> W["Security_Audit_Run__c"]
+    S --> X["Security_Finding__c"]
+    T --> Y["Deployment_Assessment__c"]
+    T --> Z["Deployment_Finding__c"]
+    U --> AA["Documentation_Request__c"]
+    V --> AB["Optimization_Finding__c"]
 
-    D --> AA[AiPromptGroundingService]
-    D --> AB[AiGuardrailService]
-    D --> AC[MetadataExplainabilityService]
+    D --> AC["AiPromptGroundingService"]
+    D --> AD["AiGuardrailService"]
+    D --> AE["AiResponseFormatter"]
+    D --> AF["MetadataExplainabilityService"]
 ```
 
-## 4. Beginner-Friendly Working Model
+## 5. How The Whole Process Works Step by Step
 
-Think of the project in 6 layers:
+### A. Metadata refresh flow
 
-1. Extraction layer
-   Reads metadata from Salesforce Tooling API.
+1. User clicks `Refresh Metadata Core` in the Lightning page.
+2. `aiMetadataCopilotWorkspace` calls `AiMetadataCopilotController`.
+3. The controller calls `AiAgentActionService`.
+4. `AiAgentActionService` calls `MetadataExtractionOrchestrator`.
+5. The orchestrator uses `MetadataToolingApiClient` to call the Salesforce Tooling API.
+6. `MetadataExtractionService` extracts metadata such as Apex classes, flows, and custom fields.
+7. `MetadataNormalizationService` shapes the raw responses into a common internal model.
+8. `MetadataSnapshotService` stores the extraction run in snapshot objects.
+9. `MetadataIndexerService` stores each metadata item in `Metadata_Item__c`.
+10. `MetadataUsageAnalyzerService` scans the indexed metadata and creates `Metadata_Usage__c` records.
 
-2. Indexing layer
-   Stores metadata in custom objects so it can be queried later.
+### B. Natural language search flow
 
-3. Dependency layer
-   Creates usage relationships like:
-   - Apex class uses field
-   - flow uses object
+1. User asks a plain-English question such as `Where is Account.CustomerPriority__c used?`
+2. The LWC sends the request to `AiMetadataCopilotController`.
+3. `AiAgentActionService` converts the question into a structured search request.
+4. `AiPromptGroundingService` prepares grounded context from stored metadata records.
+5. `MetadataSearchService` queries metadata and usage records.
+6. `MetadataExplainabilityService` prepares the reason behind the answer.
+7. `AiResponseFormatter` returns a clean answer with summary, severity, and matched components.
 
-4. Intelligence layer
-   Searches metadata, calculates impact, and formats explainable responses.
+### C. Impact analysis flow
 
-5. Governance layer
-   Runs security checks, deployment checks, documentation generation, and optimization scans.
+1. User asks what breaks if a field, object, flow, or trigger changes.
+2. The controller sends the request to `MetadataImpactAnalysisService`.
+3. The service queries matching dependencies from `Metadata_Usage__c`.
+4. `RegressionTestRecommendationService` suggests what should be tested.
+5. `AiResponseFormatter` returns:
+   - impacted components
+   - severity
+   - recommendations
+   - explanation
 
-6. Experience layer
-   LWC workspace and Agentforce-facing Apex methods.
+### D. Security audit flow
 
-## 5. Custom Objects Created
+1. User asks who can access a sensitive Health Cloud field.
+2. `SecurityAuditOrchestrator` runs the security review pipeline.
+3. `SensitiveDataClassificationService` determines whether the field is sensitive.
+4. `FieldAccessAuditService` checks field-level exposure.
+5. `PermissionSetExposureService` checks permission set access.
+6. `ProfileExposureService` checks profile access.
+7. `SharingRiskService` evaluates sharing-related risk.
+8. Findings are stored in:
+   - `Security_Audit_Run__c`
+   - `Security_Finding__c`
 
-### Existing MVP Objects
+### E. Deployment assistant flow
 
-#### `Metadata_Item__c`
+1. User requests source vs target org comparison.
+2. `EnvironmentSnapshotService` prepares source and target snapshot context.
+3. `MetadataCompareService` compares metadata states.
+4. `DeploymentRiskAssessmentService` calculates deployment risk.
+5. `RollbackChecklistService` generates rollback guidance.
+6. `RegressionTestRecommendationService` generates testing guidance.
+7. Results are stored in:
+   - `Deployment_Assessment__c`
+   - `Deployment_Finding__c`
+
+### F. Documentation flow
+
+1. User asks to explain a flow, object, or Apex class.
+2. `MetadataDocumentationService` gathers grounded details.
+3. `ReleaseNoteGenerationService` can build release-note style summaries.
+4. Output is stored in `Documentation_Request__c`.
+
+### G. Optimization scan flow
+
+1. User runs the optimization workspace.
+2. Scanner services analyze metadata.
+3. Findings are stored in `Optimization_Finding__c`.
+
+## 6. Objects Created In This Project
+
+## 6.1 Core MVP Objects
+
+### `Metadata_Item__c`
 Purpose:
-- stores one metadata component per row
+- Stores one metadata component per row.
+- Works as the main searchable metadata index.
 
-Important fields:
+Fields:
+- `Api_Name__c`
+- `Definition__c`
+- `Developer_Name__c`
+- `Field_API_Name__c`
+- `Last_Indexed_On__c`
 - `Metadata_Key__c`
 - `Metadata_Type__c`
-- `Api_Name__c`
-- `Developer_Name__c`
-- `Object_API_Name__c`
-- `Field_API_Name__c`
-- `Source_Record_Id__c`
 - `Namespace_Prefix__c`
+- `Object_API_Name__c`
+- `Search_Text__c`
+- `Source_Record_Id__c`
 - `Status__c`
-- `Last_Indexed_On__c`
 
 Use case:
-- used as the main searchable metadata inventory
+- Search metadata by object, field, or component name.
 
-#### `Metadata_Usage__c`
+### `Metadata_Usage__c`
 Purpose:
-- stores one dependency relationship per row
+- Stores one dependency or usage relationship per row.
 
-Important fields:
-- `Usage_Key__c`
-- `Source_Metadata__c`
-- `Target_Metadata__c`
-- `Source_Key__c`
-- `Target_Key__c`
-- `Usage_Type__c`
-- `Source_Type__c`
-- `Target_Type__c`
-- `Match_Text__c`
+Fields:
 - `Context_Snippet__c`
 - `Last_Analyzed_On__c`
+- `Match_Text__c`
+- `Source_Key__c`
+- `Source_Metadata__c`
+- `Source_Type__c`
+- `Target_Key__c`
+- `Target_Metadata__c`
+- `Target_Type__c`
+- `Usage_Key__c`
+- `Usage_Type__c`
 
 Use case:
-- used for field usage and object usage search
+- Find where a field or object is referenced.
 
-#### `Impact_Assessment__c`
+### `Impact_Assessment__c`
 Purpose:
-- stores impact search runs and summaries
+- Stores impact search input and output summary.
 
-Important fields:
+Fields:
+- `Impact_Level__c`
+- `Match_Count__c`
 - `Query_Text__c`
 - `Query_Type__c`
 - `Summary__c`
-- `Impact_Level__c`
-- `Match_Count__c`
 
 Use case:
-- used to persist impact analysis outputs
+- Save impact analysis results so they can be reviewed later.
 
-### New Enterprise Objects
+## 6.2 Enterprise Objects
 
-#### `Metadata_Snapshot__c`
+### `Metadata_Snapshot__c`
 Purpose:
-- stores each metadata extraction snapshot or environment snapshot
+- Stores one metadata extraction or compare snapshot.
 
-Key fields:
+Fields:
+- `Completed_On__c`
+- `Item_Count__c`
 - `Snapshot_Key__c`
 - `Snapshot_Type__c`
 - `Source_Org_Label__c`
-- `Target_Org_Label__c`
-- `Status__c`
 - `Started_On__c`
-- `Completed_On__c`
-- `Item_Count__c`
+- `Status__c`
 - `Summary__c`
+- `Target_Org_Label__c`
 
-#### `Metadata_Component_Version__c`
+Use case:
+- Ground AI responses using a specific metadata state.
+
+### `Metadata_Component_Version__c`
 Purpose:
-- stores one component’s state inside a snapshot
+- Stores one versioned component row for a snapshot.
 
-Key fields:
-- `Version_Key__c`
-- `Snapshot_Key__c`
-- `Metadata_Key__c`
-- `Metadata_Type__c`
+Fields:
 - `Api_Name__c`
 - `Checksum__c`
-- `Source_Record_Id__c`
 - `Definition_Snippet__c`
+- `Metadata_Key__c`
+- `Metadata_Type__c`
+- `Snapshot_Key__c`
+- `Source_Record_Id__c`
+- `Version_Key__c`
 
-#### `Security_Audit_Run__c`
+Use case:
+- Compare component state across environments or across refresh runs.
+
+### `Security_Audit_Run__c`
 Purpose:
-- one security audit execution
+- Stores one audit execution.
 
-Key fields:
+Fields:
+- `Completed_On__c`
+- `Finding_Count__c`
 - `Run_Key__c`
 - `Scope_Type__c`
 - `Scope_Value__c`
 - `Severity__c`
-- `Summary__c`
 - `Started_On__c`
-- `Completed_On__c`
-- `Finding_Count__c`
+- `Summary__c`
 
-#### `Security_Finding__c`
+Use case:
+- Track one security review event from request to result.
+
+### `Security_Finding__c`
 Purpose:
-- one security finding
+- Stores one security finding.
 
-Key fields:
-- `Finding_Key__c`
-- `Run_Key__c`
-- `Finding_Type__c`
-- `Severity__c`
-- `Object_API_Name__c`
+Fields:
 - `Field_API_Name__c`
+- `Finding_Key__c`
+- `Finding_Type__c`
+- `Object_API_Name__c`
 - `Permission_Artifact__c`
-- `Summary__c`
 - `Recommendation__c`
-
-#### `Deployment_Assessment__c`
-Purpose:
-- one deployment compare and risk analysis run
-
-Key fields:
-- `Assessment_Key__c`
-- `Source_Environment__c`
-- `Target_Environment__c`
-- `Readiness_Score__c`
+- `Run_Key__c`
 - `Severity__c`
 - `Summary__c`
-- `Rollback_Checklist__c`
-- `Test_Checklist__c`
 
-#### `Deployment_Finding__c`
+Use case:
+- Show which profile, permission set, or rule creates a risk.
+
+### `Deployment_Assessment__c`
 Purpose:
-- one deployment issue
+- Stores one deployment comparison run.
 
-Key fields:
-- `Finding_Key__c`
-- `Assessment_Key__c`
-- `Finding_Type__c`
-- `Severity__c`
-- `Metadata_Key__c`
-- `Summary__c`
-- `Recommendation__c`
+Use case:
+- Save release readiness results between source and target environments.
 
-#### `Documentation_Request__c`
+### `Deployment_Finding__c`
 Purpose:
-- stores generated metadata explanation outputs
+- Stores one deployment warning or difference.
 
-Key fields:
-- `Request_Key__c`
-- `Request_Type__c`
-- `Metadata_Key__c`
-- `Technical_Summary__c`
-- `Business_Summary__c`
-- `Status__c`
+Use case:
+- Show missing dependencies, risk items, and rollback notes.
 
-#### `Optimization_Finding__c`
+### `Documentation_Request__c`
 Purpose:
-- stores optimization and cleanup issues
+- Stores one generated documentation request and summary.
 
-Key fields:
-- `Finding_Key__c`
-- `Finding_Type__c`
-- `Severity__c`
-- `Metadata_Key__c`
-- `Summary__c`
-- `Recommendation__c`
-- `Status__c`
+Use case:
+- Keep grounded technical and business summaries for later reference.
 
-## 6. Custom Metadata Types Created
-
-#### `Metadata_Type_Config__mdt`
+### `Optimization_Finding__c`
 Purpose:
-- configures which metadata types are extracted and how
+- Stores one optimization issue or cleanup recommendation.
 
-Fields:
-- `Metadata_Type__c`
-- `Query_Text__c`
-- `Enabled__c`
+Use case:
+- Track unused fields, risky triggers, duplicate flows, and other cleanup opportunities.
 
-#### `Sensitive_Field_Rule__mdt`
+## 6.3 Custom Metadata Types Created
+
+### `Metadata_Type_Config__mdt`
+Use case:
+- Controls extraction and processing rules by metadata type.
+
+### `Sensitive_Field_Rule__mdt`
+Use case:
+- Marks Health Cloud-sensitive fields and objects.
+
+### `Risk_Scoring_Rule__mdt`
+Use case:
+- Controls severity scoring for impact, security, and deployment logic.
+
+### `Agent_Action_Config__mdt`
+Use case:
+- Controls which AI actions are enabled and how they are exposed.
+
+### `Environment_Connection__mdt`
+Use case:
+- Stores allowed source and target environment connection labels.
+
+Note:
+- The custom metadata types are included in source.
+- Individual custom metadata records should be created per environment based on your team’s rules.
+
+## 7. Apex Classes Created
+
+This section lists the major Apex files in the project and what each one does.
+
+| Class | What It Does | Typical Use Case |
+|---|---|---|
+| `MetadataToolingApiClient` | Calls the Salesforce Tooling API | Read metadata from the org |
+| `MetadataExtractionService` | Extracts metadata records from Tooling API | Read Apex classes, flows, and custom fields |
+| `MetadataNormalizationService` | Converts raw extraction output to a common shape | Keep downstream services simple |
+| `MetadataIndexerService` | Upserts metadata into `Metadata_Item__c` | Build searchable metadata index |
+| `MetadataUsageAnalyzerService` | Builds dependency links in `Metadata_Usage__c` | Find field and object usage |
+| `MetadataSearchService` | Searches stored metadata and usage records | Answer metadata search questions |
+| `MetadataImpactAnalysisService` | Builds impact summary and severity | Show what breaks if something changes |
+| `MetadataExplainabilityService` | Adds reason and traceability to results | Explain why a result was returned |
+| `MetadataExtractionOrchestrator` | Coordinates extract, normalize, snapshot, and index flow | Full metadata refresh |
+| `MetadataSnapshotService` | Stores snapshot and component version records | Ground AI answers on stored state |
+| `MetadataCompareService` | Compares metadata snapshots | Detect differences between environments |
+| `EnvironmentSnapshotService` | Builds compare context for environments | Source vs target comparison |
+| `DeploymentRiskAssessmentService` | Calculates deployment risk | Predict release risk before deploy |
+| `RollbackChecklistService` | Produces rollback checklist guidance | Prepare safer deployment plans |
+| `RegressionTestRecommendationService` | Suggests what to test | Release readiness and impact testing |
+| `SecurityAuditOrchestrator` | Coordinates security review | Run Health Cloud-sensitive audits |
+| `SensitiveDataClassificationService` | Classifies sensitive data targets | PHI-oriented audit rules |
+| `FieldAccessAuditService` | Checks field-level exposure | See who can access a field |
+| `PermissionSetExposureService` | Checks permission-set exposure | Review permission sets exposing data |
+| `ProfileExposureService` | Checks profile exposure | Review profile-based access |
+| `SharingRiskService` | Evaluates sharing-related risk | Understand broader access risk |
+| `MetadataDocumentationService` | Creates grounded documentation summaries | Explain classes, flows, and objects |
+| `ReleaseNoteGenerationService` | Builds release-note style summaries | Prepare release communication |
+| `UnusedMetadataScanner` | Finds likely unused metadata | Cleanup candidate detection |
+| `DuplicateFlowScanner` | Detects overlapping or duplicate flows | Optimization scan |
+| `TriggerRiskScanner` | Finds risky trigger patterns | Release and optimization review |
+| `HardcodedIdScanner` | Detects likely hardcoded IDs | Technical debt detection |
+| `AiMetadataCopilotModels` | Standard DTOs for requests and responses | Keep controller payloads consistent |
+| `AiPromptGroundingService` | Prepares structured grounded context | Safe Agentforce prompt input |
+| `AiGuardrailService` | Applies safety rules and response gating | Prevent unsafe or unsupported answers |
+| `AiResponseFormatter` | Creates structured responses | Consistent UI and AI outputs |
+| `AiAgentActionService` | Main domain action router | Entry point for AI-backed operations |
+| `AiMetadataCopilotController` | `@AuraEnabled` UI controller | Called by LWC workspace |
+| `MetadataNavigatorController` | Original MVP controller | Supports earlier navigator UI |
+| `MetadataRefreshQueueable` | Async metadata refresh job | Long-running refresh support |
+| `SecurityAuditQueueable` | Async security audit job | Background audit execution |
+| `DeploymentCompareQueueable` | Async compare job | Background deployment comparison |
+| `OptimizationScanQueueable` | Async optimization job | Background cleanup analysis |
+
+## 8. Lightning Web Components Created
+
+### `metadataNavigator`
 Purpose:
-- marks sensitive Health Cloud objects and fields
+- Original MVP UI for metadata refresh, search, and impact summary.
 
-Fields:
-- `Object_API_Name__c`
-- `Field_API_Name__c`
-- `Sensitivity_Level__c`
-- `Compliance_Note__c`
+Use case:
+- Good starting point for understanding the project evolution.
 
-#### `Risk_Scoring_Rule__mdt`
+### `aiMetadataCopilotWorkspace`
 Purpose:
-- stores configurable scoring logic
-
-Fields:
-- `Rule_Category__c`
-- `Weight__c`
-- `Severity__c`
-
-#### `Agent_Action_Config__mdt`
-Purpose:
-- controls AI action exposure and prompt mapping
-
-Fields:
-- `Action_Name__c`
-- `Topic_Name__c`
-- `Enabled__c`
-- `Prompt_Template_Name__c`
-- `Guardrail_Note__c`
-
-#### `Environment_Connection__mdt`
-Purpose:
-- stores allowed environment comparison configuration
-
-Fields:
-- `Environment_Label__c`
-- `Named_Credential__c`
-- `Environment_Type__c`
-- `Active__c`
-
-## 7. Apex Classes Created and What They Do
-
-### Original Metadata Core
-
-#### `MetadataToolingApiClient`
-Use:
-- makes Tooling API callouts through a Named Credential
-
-Why it exists:
-- keeps HTTP logic separated from business logic
-
-#### `MetadataExtractionService`
-Use:
-- extracts Apex classes, Flows, and Custom Fields
-
-Why it exists:
-- converts Tooling API data into a simple internal structure
-
-Important note:
-- it was adjusted to avoid the 100-callout governor limit by using bulk-safe summary extraction
-
-#### `MetadataIndexerService`
-Use:
-- upserts extracted metadata into `Metadata_Item__c`
-
-#### `MetadataUsageAnalyzerService`
-Use:
-- creates `Metadata_Usage__c` rows by matching metadata references
-
-#### `MetadataSearchService`
-Use:
-- searches indexed usage for field usage and object usage
-
-#### `MetadataImpactAnalysisService`
-Use:
-- converts search results into impact summaries
-
-#### `MetadataNavigatorController`
-Use:
-- controller used by the original `metadataNavigator` LWC
-
-### Enterprise AI Foundation
-
-#### `AiMetadataCopilotModels`
-Use:
-- shared request/response DTO classes for all AI workflows
-
-#### `MetadataSnapshotService`
-Use:
-- stores metadata snapshots and component versions
-
-#### `MetadataNormalizationService`
-Use:
-- converts plain English questions into normalized request structures
-
-#### `MetadataExplainabilityService`
-Use:
-- builds grounded explanations and recommendations
-
-#### `MetadataExtractionOrchestrator`
-Use:
-- runs extraction, snapshot creation, indexing, and usage analysis in the right order
-
-#### `AiPromptGroundingService`
-Use:
-- converts metadata findings into grounded AI-friendly context
-
-#### `AiGuardrailService`
-Use:
-- blocks unsafe/destructive prompt intent
-
-#### `AiResponseFormatter`
-Use:
-- converts counts into scores and severity labels
-
-#### `SensitiveDataClassificationService`
-Use:
-- determines which Health Cloud objects/fields are sensitive
-
-#### `FieldAccessAuditService`
-Use:
-- reads `FieldPermissions` for a field
-
-#### `PermissionSetExposureService`
-Use:
-- creates security findings for permission sets
-
-#### `ProfileExposureService`
-Use:
-- creates security findings for profile-owned access
-
-#### `SharingRiskService`
-Use:
-- adds higher-level sharing risk warnings
-
-#### `SecurityAuditOrchestrator`
-Use:
-- runs the full security audit and stores run/finding records
-
-#### `EnvironmentSnapshotService`
-Use:
-- captures environment snapshots for compare use cases
-
-#### `MetadataCompareService`
-Use:
-- compares metadata snapshots by checksum and presence
-
-#### `DeploymentRiskAssessmentService`
-Use:
-- calculates deployment readiness and stores results
-
-#### `RollbackChecklistService`
-Use:
-- generates rollback guidance
-
-#### `RegressionTestRecommendationService`
-Use:
-- generates testing recommendations for impact and deployment
-
-#### `MetadataDocumentationService`
-Use:
-- generates grounded documentation summaries
-
-#### `ReleaseNoteGenerationService`
-Use:
-- specialized documentation generation for release notes
-
-#### `UnusedMetadataScanner`
-Use:
-- identifies custom fields without detected incoming usage
-
-#### `DuplicateFlowScanner`
-Use:
-- identifies possible duplicate flow names
-
-#### `TriggerRiskScanner`
-Use:
-- identifies Apex that looks like trigger logic
-
-#### `HardcodedIdScanner`
-Use:
-- identifies possible hardcoded IDs in Apex
-
-#### `AiAgentActionService`
-Use:
-- main service layer used by the AI controller
-
-Why it exists:
-- one place to connect search, impact, security, deployment, documentation, and optimization services
-
-#### `AiMetadataCopilotController`
-Use:
-- AuraEnabled controller for the new AI workspace
-
-### Queueables
-
-#### `MetadataRefreshQueueable`
-Use:
-- async refresh runner
-
-#### `SecurityAuditQueueable`
-Use:
-- async security audit runner
-
-#### `DeploymentCompareQueueable`
-Use:
-- async deployment compare runner
-
-#### `OptimizationScanQueueable`
-Use:
-- async optimization scan runner
-
-## 8. LWCs Created
-
-#### `metadataNavigator`
-Use:
-- original MVP UI for refresh + field/object search
-
-#### `aiMetadataCopilotWorkspace`
-Use:
-- new enterprise tabbed workspace
+- Enterprise workspace UI with multiple functional tabs.
 
 Tabs:
 - Search Workspace
@@ -522,223 +439,166 @@ Tabs:
 - Optimization Scanner Workspace
 - Admin Configuration Workspace
 
-## 9. Step-by-Step How the Project Works
+Use case:
+- Main Lightning page component for internal users.
 
-### A. Metadata Refresh
+## 9. How AI and Agentforce Fit In
 
-1. User clicks `Refresh Metadata Core`
-2. LWC calls `AiMetadataCopilotController.refreshMetadataIndex`
-3. Controller calls `MetadataExtractionOrchestrator`
-4. Orchestrator extracts metadata
-5. Snapshot is saved to `Metadata_Snapshot__c`
-6. Component versions are saved to `Metadata_Component_Version__c`
-7. Metadata items are upserted into `Metadata_Item__c`
-8. Usage relationships are upserted into `Metadata_Usage__c`
-9. UI shows snapshot key and counts
+The project is designed so Salesforce-native AI can call structured Apex actions instead of guessing.
 
-### B. Natural Language Search
+The intended Agentforce pattern is:
 
-1. User asks a question like:
-   `Where is Patient_Status__c used?`
-2. LWC sends the prompt to `AiMetadataCopilotController.searchMetadata`
-3. `AiAgentActionService` normalizes the prompt
-4. `MetadataSearchService` runs the actual search
-5. `AiPromptGroundingService` converts raw rows into grounded AI result objects
-6. `MetadataExplainabilityService` builds summary and explanation
-7. LWC shows structured results
+1. User asks a plain-English question.
+2. Agentforce topic routes the request.
+3. Apex action calls `AiAgentActionService`.
+4. The action gathers grounded data from custom objects and internal analyzers.
+5. `AiGuardrailService` ensures the answer is safe and grounded.
+6. `AiResponseFormatter` produces a structured result.
 
-### C. Impact Analysis
+This means:
+- AI answers are based on stored metadata and findings.
+- AI is not free-guessing.
+- Sensitive Health Cloud data can be protected with controlled grounding.
 
-1. User asks:
-   `If I rename Contact.Email what breaks?`
-2. Request goes through `AiAgentActionService.analyzeImpact`
-3. Existing usage search is reused
-4. Impact score and severity are calculated
-5. Regression test suggestions are generated
-6. `Impact_Assessment__c` persists the result
-7. UI shows summary, severity, impacted components, and recommendations
+## 10. Important Setup Notes For New Team Members
 
-### D. Security Audit
+These parts are in source control:
+- Apex classes
+- LWCs
+- custom objects
+- custom metadata types
+- Salesforce DX project files
 
-1. User asks:
-   `Who can access Member__c sensitive fields?`
-2. Prompt is normalized into object/field scope
-3. Sensitive targets are loaded from `Sensitive_Field_Rule__mdt` or fallback rules
-4. `FieldAccessAuditService` queries `FieldPermissions`
-5. Permission set and profile exposure services create findings
-6. Sharing risk service adds broad exposure warnings
-7. Findings are saved into:
-   - `Security_Audit_Run__c`
-   - `Security_Finding__c`
-8. UI shows grounded findings
+These parts still require org setup:
+- Named Credential and External Credential authentication
+- Agentforce topic configuration
+- Prompt Builder templates
+- Custom metadata records such as sensitive field rules and risk scoring rules
+- Permission sets and user assignments
 
-### E. Deployment Assistant
+## 11. How To Run The Project In A New Salesforce Sandbox
 
-1. User selects source and target environment
-2. Controller calls deployment compare service
-3. Snapshot versions are compared
-4. Missing and changed metadata are identified
-5. Readiness score is calculated
-6. Rollback and test checklist are generated
-7. Results are saved in deployment assessment objects
+### Step 1. Clone the repository
 
-### F. Documentation Generator
+```powershell
+git clone https://github.com/YOUR_GITHUB_USERNAME/ai-metadata-copilot-salesforce-health-cloud.git
+cd "ai-metadata-copilot-salesforce-health-cloud"
+```
 
-1. User enters a metadata key
-2. Documentation service loads indexed metadata
-3. Technical summary is created
-4. Business summary is created
-5. Request is stored in `Documentation_Request__c`
-6. UI shows grounded documentation
-
-### G. Optimization Scanner
-
-1. User runs the scan
-2. Multiple scanners run:
-   - unused metadata
-   - duplicate flows
-   - trigger risk
-   - hardcoded IDs
-3. Findings are stored in `Optimization_Finding__c`
-4. UI shows results
-
-## 10. Important Setup Still Needed in the Org
-
-This repo contains the source, but some Salesforce configuration is still done in the org UI.
-
-You still need:
-- Lightning App Builder page setup for `aiMetadataCopilotWorkspace`
-- Named Credential configuration for Tooling API
-- `Sensitive_Field_Rule__mdt` records
-- `Agent_Action_Config__mdt` records
-- `Environment_Connection__mdt` records
-- Prompt Builder assets
-- Agentforce topics and actions
-- Permission sets
-- Test classes
-
-## 11. How to Deploy to a Salesforce Org
-
-Authorize org:
+### Step 2. Authorize the Salesforce org
 
 ```powershell
 sf org login web --alias health-mvp-dev --instance-url https://login.salesforce.com
 ```
 
-Deploy:
+### Step 3. Deploy metadata
 
 ```powershell
-cd "D:\Salesforce Metadata Navigator MVP"
 sf project deploy start --target-org health-mvp-dev --source-dir force-app
 ```
 
-## 12. How to Add the LWC to Lightning App Builder
+### Step 4. Configure org-side items
 
-1. Open Salesforce
-2. Click `Setup`
-3. Search `Lightning App Builder`
-4. Open `Lightning App Builder`
-5. Create or edit an `App Page`
-6. Drag `aiMetadataCopilotWorkspace` onto the page
-7. Save
-8. Activate
+Set up:
+- Named Credential
+- External Credential
+- Agentforce assets
+- Prompt Builder assets
+- custom metadata records
 
-## 13. How to Put This on GitHub
+### Step 5. Add the Lightning page
 
-### Step 1. Initialize git locally
+1. Open `Setup`
+2. Search `Lightning App Builder`
+3. Create or open an `App Page`
+4. Drag `aiMetadataCopilotWorkspace` onto the page
+5. Save and Activate
+
+### Step 6. Test the app
+
+Run:
+- metadata refresh
+- search
+- impact analysis
+- security audit
+- optimization scan
+
+## 12. How To Understand The Project As A Beginner
+
+If you are new to Salesforce development, read the project in this order:
+
+1. [`README.md`](D:\Salesforce Metadata Navigator MVP\README.md)
+2. [`MetadataToolingApiClient.cls`](D:\Salesforce Metadata Navigator MVP\force-app\main\default\classes\MetadataToolingApiClient.cls)
+3. [`MetadataExtractionService.cls`](D:\Salesforce Metadata Navigator MVP\force-app\main\default\classes\MetadataExtractionService.cls)
+4. [`MetadataIndexerService.cls`](D:\Salesforce Metadata Navigator MVP\force-app\main\default\classes\MetadataIndexerService.cls)
+5. [`MetadataUsageAnalyzerService.cls`](D:\Salesforce Metadata Navigator MVP\force-app\main\default\classes\MetadataUsageAnalyzerService.cls)
+6. [`MetadataSearchService.cls`](D:\Salesforce Metadata Navigator MVP\force-app\main\default\classes\MetadataSearchService.cls)
+7. [`MetadataImpactAnalysisService.cls`](D:\Salesforce Metadata Navigator MVP\force-app\main\default\classes\MetadataImpactAnalysisService.cls)
+8. [`AiAgentActionService.cls`](D:\Salesforce Metadata Navigator MVP\force-app\main\default\classes\AiAgentActionService.cls)
+9. [`AiMetadataCopilotController.cls`](D:\Salesforce Metadata Navigator MVP\force-app\main\default\classes\AiMetadataCopilotController.cls)
+10. [`aiMetadataCopilotWorkspace`](D:\Salesforce Metadata Navigator MVP\force-app\main\default\lwc\aiMetadataCopilotWorkspace)
+
+Simple mental model:
+- `MetadataToolingApiClient` fetches data.
+- extraction services shape data.
+- indexer stores data.
+- analyzer connects dependencies.
+- search and impact services answer questions.
+- AI action service exposes the intelligence cleanly.
+- LWC shows everything to users.
+
+## 13. What Is Already Working
+
+Working project areas:
+- metadata extraction
+- metadata indexing
+- metadata usage mapping
+- object usage search
+- field usage search
+- impact summaries
+- enterprise workspace foundation
+- security/deployment/documentation/optimization service scaffolding
+- Salesforce deployment-ready source format
+
+## 14. Current Known Limitations
+
+- Prompt Builder assets are part of the target architecture but still require org-side setup.
+- Agentforce topics and actions still require configuration in the org.
+- Named Credential and authentication setup is org-specific.
+- The advanced enterprise services are a strong foundation, but not every roadmap item has been fully matured.
+- Test classes still need to be expanded for production-grade confidence.
+
+## 15. GitHub Publishing Workflow
+
+Recommended Git workflow:
 
 ```powershell
-cd "D:\Salesforce Metadata Navigator MVP"
-git init
+git checkout main
+git pull
+git checkout -b feature/your-change
 git add .
-git commit -m "Initial AI Metadata Copilot for Salesforce Health Cloud"
+git commit -m "Describe your change"
+git push -u origin feature/your-change
 ```
 
-### Step 2. Create an empty GitHub repository
+Then open a pull request on GitHub.
 
-Use a repo name like:
+For teammates:
+- clone the repo if they want to contribute to the same shared repository
+- fork the repo if they want a separate personal copy
 
-```text
-ai-metadata-copilot-salesforce-health-cloud
-```
+## 16. Final Summary
 
-### Step 3. Add remote and push
+This project is a Salesforce-native metadata intelligence and AI copilot foundation for Health Cloud.
 
-```powershell
-git branch -M main
-git remote add origin https://github.com/KrishnenduBose-github/ai-metadata-copilot-salesforce-health-cloud.git
-git push -u origin main
-```
+In simple terms:
+- it reads metadata
+- stores metadata
+- connects dependencies
+- answers questions
+- explains risk
+- supports security review
+- supports deployment review
+- prepares the path for Salesforce-native AI experiences
 
-## 14. Recommended Team Workflow
-
-Your teammates can:
-
-```powershell
-git clone https://github.com/KrishnenduBose-github/ai-metadata-copilot-salesforce-health-cloud.git
-```
-
-Then:
-
-```powershell
-git checkout -b feature/my-change
-```
-
-After changes:
-
-```powershell
-git add .
-git commit -m "Describe change"
-git push origin feature/my-change
-```
-
-Then open a Pull Request in GitHub.
-
-## 15. Beginner Notes
-
-If you are new to Salesforce, remember this:
-
-- LWC is the UI
-- Apex is the backend logic
-- Custom Objects store results
-- Custom Metadata Types store configuration
-- Tooling API reads metadata
-- Named Credentials make callouts safer
-- Agentforce and Prompt Builder sit on top of this logic, not instead of it
-
-The AI is only as good as the grounding data.
-
-That means:
-- refresh metadata often
-- keep custom metadata configuration clean
-- make AI answers point to real stored findings
-
-## 16. Current Known Limitations
-
-- Flow extraction is intentionally lighter now to avoid governor limit issues
-- dependency analysis is still mostly text-based
-- deployment comparison is snapshot-based, not true cross-org deep diff yet
-- Prompt Builder and Agentforce assets are not source-authored in full here
-- no test classes yet
-- no packaged permission sets yet
-
-## 17. Suggested Next Steps
-
-1. Add test classes
-2. Create sample custom metadata records
-3. Wire Prompt Builder assets
-4. Configure Agentforce topics/actions
-5. Add permission sets
-6. Improve dependency parsing depth
-7. Harden deployment comparison
-
----
-
-If you are handing this project to another beginner developer, tell them to start with:
-- `AiMetadataCopilotController`
-- `AiAgentActionService`
-- `MetadataExtractionOrchestrator`
-- `MetadataSearchService`
-- `aiMetadataCopilotWorkspace`
-
-Those 5 pieces explain most of the project flow.
+It is designed so a beginner can follow it, while still being structured enough for enterprise growth.

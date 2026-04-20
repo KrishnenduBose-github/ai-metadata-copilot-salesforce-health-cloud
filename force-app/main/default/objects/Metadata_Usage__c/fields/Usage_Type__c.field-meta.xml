@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Usage_Type__c</fullName>
+    <label>Usage Type</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>UsesField</fullName>
+                <default>false</default>
+                <label>UsesField</label>
+            </value>
+            <value>
+                <fullName>UsesObject</fullName>
+                <default>false</default>
+                <label>UsesObject</label>
+            </value>
+            <value>
+                <fullName>InvokesFlow</fullName>
+                <default>false</default>
+                <label>InvokesFlow</label>
+            </value>
+            <value>
+                <fullName>ReferencesApex</fullName>
+                <default>false</default>
+                <label>ReferencesApex</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
