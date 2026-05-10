@@ -17,7 +17,7 @@ public with sharing class SensitiveDataClassificationService {
                 continue;
             }
 
-            if (!String.isBlank(fieldApiName) && !matchesScope(ruleRecord.Field_API_Name__c, fieldApiName)) {
+            if (!matchesScope(ruleRecord.Field_API_Name__c, fieldApiName)) {
                 continue;
             }
 
@@ -33,6 +33,10 @@ public with sharing class SensitiveDataClassificationService {
             return targets;
         }
 
+        if (String.isBlank(objectApiName) && String.isBlank(fieldApiName)) {
+            return targets;
+        }
+
         return buildFallbackTargets(objectApiName, fieldApiName);
     }
 
@@ -42,23 +46,19 @@ public with sharing class SensitiveDataClassificationService {
             'Account', 'Contact', 'Case', 'CarePlan__c', 'Member__c', 'Claim__c'
         };
 
-        if (String.isBlank(objectApiName)) {
-            for (String baselineObject : baselineObjects) {
-                SensitiveTarget target = new SensitiveTarget();
-                target.objectApiName = baselineObject;
-                target.sensitivityLevel = 'High';
-                target.complianceNote = 'Fallback Health Cloud baseline rule';
-                fallbackTargets.add(target);
-            }
-            return fallbackTargets;
+        List<String> objectsToCheck = String.isBlank(objectApiName)
+            ? baselineObjects
+            : new List<String>{ objectApiName };
+
+        for (String baselineObject : objectsToCheck) {
+            SensitiveTarget target = new SensitiveTarget();
+            target.objectApiName = baselineObject;
+            target.fieldApiName = String.isBlank(fieldApiName) ? null : fieldApiName;
+            target.sensitivityLevel = inferSensitivityLevel(baselineObject, fieldApiName);
+            target.complianceNote = 'Fallback Health Cloud baseline rule';
+            fallbackTargets.add(target);
         }
 
-        SensitiveTarget target = new SensitiveTarget();
-        target.objectApiName = objectApiName;
-        target.fieldApiName = fieldApiName;
-        target.sensitivityLevel = inferSensitivityLevel(objectApiName, fieldApiName);
-        target.complianceNote = 'Fallback Health Cloud baseline rule';
-        fallbackTargets.add(target);
         return fallbackTargets;
     }
 

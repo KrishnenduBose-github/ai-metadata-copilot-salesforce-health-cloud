@@ -54,4 +54,9 @@ public with sharing class AiMetadataCopilotController {
     ) {
         return new AiAgentActionService().runOptimizationScan(request);
     }
+
+    @AuraEnabled
+    public static MetadataHealthService.HealthStatus checkHealth() {
+        return MetadataHealthService.check();
+    }
 }

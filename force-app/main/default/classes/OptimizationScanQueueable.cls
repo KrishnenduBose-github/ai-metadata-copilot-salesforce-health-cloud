@@ -6,6 +6,10 @@ public with sharing class OptimizationScanQueueable implements Queueable {
     }
 
     public void execute(QueueableContext context) {
-        new AiAgentActionService().runOptimizationScan(request);
+        try {
+            new AiAgentActionService().runOptimizationScan(request);
+        } catch (Exception ex) {
+            System.debug(LoggingLevel.ERROR, 'OptimizationScanQueueable failed: ' + ex.getMessage());
+        }
     }
 }

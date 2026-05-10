@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <label>Current Sandbox</label>
+    <protected>false</protected>
+    <values>
+        <field>Environment_Label__c</field>
+        <value xsi:type="xsd:string">Current Sandbox</value>
+    </values>
+    <values>
+        <field>Environment_Type__c</field>
+        <value xsi:type="xsd:string">Sandbox</value>
+    </values>
+    <values>
+        <field>Active__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>Named_Credential__c</field>
+        <value xsi:type="xsd:string">SalesforceTooling</value>
+    </values>
+</CustomMetadata>

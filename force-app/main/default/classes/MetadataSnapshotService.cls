@@ -2,6 +2,11 @@ public with sharing class MetadataSnapshotService {
     public class SnapshotResult {
         @AuraEnabled public String snapshotKey;
         @AuraEnabled public Integer componentCount;
+        @AuraEnabled public List<String> messages;
+
+        public SnapshotResult() {
+            this.messages = new List<String>();
+        }
     }
 
     public SnapshotResult saveSnapshot(
@@ -15,22 +20,34 @@ public with sharing class MetadataSnapshotService {
         result.componentCount = items == null ? 0 : items.size();
 
         if (!Schema.sObjectType.Metadata_Snapshot__c.isCreateable()) {
+            result.messages.add('Snapshot persistence is not available because Metadata Snapshot create access is missing.');
             return result;
         }
 
-        Metadata_Snapshot__c snapshotRecord = new Metadata_Snapshot__c();
-        snapshotRecord.Snapshot_Key__c = result.snapshotKey;
-        snapshotRecord.Snapshot_Type__c = snapshotType;
-        snapshotRecord.Source_Org_Label__c = sourceOrgLabel;
-        snapshotRecord.Target_Org_Label__c = targetOrgLabel;
-        snapshotRecord.Status__c = 'Completed';
-        snapshotRecord.Started_On__c = System.now();
-        snapshotRecord.Completed_On__c = System.now();
-        snapshotRecord.Item_Count__c = result.componentCount;
-        snapshotRecord.Summary__c = buildSnapshotSummary(snapshotType, result.componentCount);
-        upsert snapshotRecord Snapshot_Key__c;
+        try {
+            Metadata_Snapshot__c snapshotRecord = new Metadata_Snapshot__c();
+            snapshotRecord.Snapshot_Key__c = result.snapshotKey;
+            snapshotRecord.Snapshot_Type__c = snapshotType;
+            snapshotRecord.Source_Org_Label__c = sourceOrgLabel;
+            snapshotRecord.Target_Org_Label__c = targetOrgLabel;
+            snapshotRecord.Status__c = 'Completed';
+            snapshotRecord.Started_On__c = System.now();
+            snapshotRecord.Completed_On__c = System.now();
+            snapshotRecord.Item_Count__c = result.componentCount;
+            snapshotRecord.Summary__c = buildSnapshotSummary(snapshotType, result.componentCount);
+            Database.upsert(snapshotRecord, Metadata_Snapshot__c.Fields.Snapshot_Key__c, false);
 
-        saveComponentVersions(result.snapshotKey, items);
+            saveComponentVersions(result.snapshotKey, items);
+        } catch (DmlException dmlError) {
+            if (!MetadataStorageUtility.isStorageLimitException(dmlError)) {
+                throw dmlError;
+            }
+
+            result.messages.add(
+                'Snapshot persistence was skipped because the org is low on storage. Metadata indexing still continued.'
+            );
+        }
+
         return result;
     }
 
@@ -82,9 +99,14 @@ public with sharing class MetadataSnapshotService {
             recordsToUpsert.add(versionRecord);
         }
 
-        if (!recordsToUpsert.isEmpty()) {
-            upsert recordsToUpsert Version_Key__c;
+        if (
+            recordsToUpsert.isEmpty()
+            || !Schema.sObjectType.Metadata_Component_Version__c.isCreateable()
+        ) {
+            return;
         }
+
+        Database.upsert(recordsToUpsert, Metadata_Component_Version__c.Fields.Version_Key__c, false);
     }
 
     private static String buildChecksum(MetadataExtractionService.ExtractedMetadataItem item) {
@@ -104,6 +126,14 @@ public with sharing class MetadataSnapshotService {
         String sourceOrgLabel,
         String targetOrgLabel
     ) {
+        if (snapshotType == 'MetadataRefresh') {
+            return String.join(new List<String>{
+                safeText(snapshotType),
+                safeText(sourceOrgLabel),
+                safeText(targetOrgLabel)
+            }, ':');
+        }
+
         return String.join(new List<String>{
             safeText(snapshotType),
             safeText(sourceOrgLabel),

@@ -1,52 +1,216 @@
-.workspace {
-    background:
-        radial-gradient(circle at top left, #f4fbf7 0%, #ffffff 45%),
-        linear-gradient(135deg, rgba(0, 97, 64, 0.05), rgba(8, 126, 139, 0.04));
+.app-root {
+    background: linear-gradient(160deg, #f0f7f4 0%, #fafcfb 40%, #fff 100%);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    font-family: 'Salesforce Sans', system-ui, -apple-system, sans-serif;
+}
+
+.header {
+    align-items: center;
+    background: linear-gradient(135deg, #006140, #087e8b);
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+}
+
+.header-brand {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.header-logo {
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.header-health {
+    color: rgba(255,255,255,0.82);
+    font-size: 0.65rem;
+}
+
+.alert {
+    border-radius: 0.4rem;
+    font-size: 0.78rem;
+    margin: 0.5rem 1rem;
+    padding: 0.6rem 0.9rem;
+}
+
+.alert-error {
+    background: #fef0f0;
+    border: 1px solid #f3c5c5;
+    color: #b91c1c;
+}
+
+.alert-success {
+    background: #edf9f1;
+    border: 1px solid #9fdca9;
+    color: #1a5c2a;
+}
+
+.alert-warn {
+    background: #fef6e8;
+    border: 1px solid #e6c87a;
+    color: #7a5500;
+}
+
+.panel {
+    display: grid;
+    gap: 0.75rem;
     padding: 1rem;
 }
 
-.workspace-actions {
-    margin-bottom: 1rem;
-}
-
-.banner {
-    border-radius: 0.5rem;
-    margin-bottom: 1rem;
-    padding: 0.75rem 1rem;
-}
-
-.success-banner {
-    background: #edf9f1;
-    border: 1px solid #b9e2c4;
-}
-
-.error-banner {
-    background: #fff1f1;
-    border: 1px solid #f0c7c7;
-}
-
-.tab-panel {
-    display: grid;
-    gap: 1rem;
-    padding: 1rem 0 0;
-}
-
-.two-column {
+.panel-cols {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.full-width {
-    grid-column: 1 / -1;
-}
-
-.summary-box {
-    background: #f6fafb;
-    border: 1px solid #d7e8eb;
-    border-radius: 0.75rem;
-    padding: 1rem;
-}
-
-.admin-list {
+.panel-desc {
+    color: #596a73;
+    font-size: 0.8rem;
     margin: 0;
-    padding-left: 1.5rem;
+}
+
+.panel-desc.full { grid-column: 1 / -1; }
+
+.full { grid-column: 1 / -1; }
+
+.mode-toggle {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.mode-label {
+    color: #3b4f5a;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.input-row {
+    align-items: flex-end;
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: 1fr 1fr auto;
+}
+
+.btn-action {
+    margin-bottom: 0.1rem;
+}
+
+.help-text {
+    color: #7a8b95;
+    font-size: 0.7rem;
+    margin: 0;
+}
+
+.help-text code {
+    background: #eef3f6;
+    border-radius: 0.2rem;
+    padding: 0.05rem 0.3rem;
+    font-size: 0.7rem;
+}
+
+.card {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #dde5e9;
+    border-radius: 0.6rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+}
+
+.card-summary {
+    color: #2b3f4a;
+    font-size: 0.82rem;
+    flex: 1;
+}
+
+.badge {
+    border-radius: 0.3rem;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.2rem 0.55rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.badge-red { background: #fde8e8; color: #9b1c1c; }
+.badge-amber { background: #fdf0d8; color: #8a6100; }
+.badge-green { background: #def7ec; color: #03543f; }
+
+.empty-state {
+    background: #f6fafc;
+    border: 1px dashed #c4d6df;
+    border-radius: 0.5rem;
+    color: #5a707b;
+    font-size: 0.78rem;
+    padding: 1.5rem 1rem;
+    text-align: center;
+}
+
+.admin-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.stats-grid {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.stat-cell {
+    background: #fff;
+    border: 1px solid #dde5e9;
+    border-radius: 0.5rem;
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+}
+
+.stat-num {
+    color: #006140;
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.stat-label {
+    color: #768893;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.setup-list {
+    font-size: 0.76rem;
+    margin: 0.25rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.setup-list li {
+    color: #4a5963;
+    margin-bottom: 0.2rem;
+}
+
+.setup-list code {
+    background: #eef3f6;
+    border-radius: 0.2rem;
+    padding: 0.05rem 0.35rem;
+    font-size: 0.7rem;
+}
+
+.setup-box {
+    background: #f6fafc;
+    border: 1px solid #dde5e9;
+    border-radius: 0.5rem;
+    font-size: 0.8rem;
+    padding: 0.75rem 1rem;
 }

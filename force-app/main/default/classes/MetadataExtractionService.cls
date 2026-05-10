@@ -163,31 +163,15 @@ public with sharing class MetadataExtractionService {
             return developerName;
         }
 
-        if (developerName.endsWith('__c')) {
+        if (developerName.endsWith('__c') || developerName.endsWith('__r')) {
             return developerName;
         }
 
-        return developerName + '__c';
+        return developerName;
     }
 
     private static List<Object> safeRecords(List<Object> records) {
         return records == null ? new List<Object>() : records;
-    }
-
-    private static String parseObjectApiName(String fullName) {
-        if (String.isBlank(fullName) || !fullName.contains('.')) {
-            return null;
-        }
-
-        return fullName.substringBefore('.');
-    }
-
-    private static String parseFieldApiName(String fullName) {
-        if (String.isBlank(fullName) || !fullName.contains('.')) {
-            return fullName;
-        }
-
-        return fullName.substringAfter('.');
     }
 
     private static String stringValue(Object value) {

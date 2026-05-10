@@ -6,6 +6,10 @@ public with sharing class SecurityAuditQueueable implements Queueable {
     }
 
     public void execute(QueueableContext context) {
-        new SecurityAuditOrchestrator().runAudit(request);
+        try {
+            new SecurityAuditOrchestrator().runAudit(request);
+        } catch (Exception ex) {
+            System.debug(LoggingLevel.ERROR, 'SecurityAuditQueueable failed: ' + ex.getMessage());
+        }
     }
 }

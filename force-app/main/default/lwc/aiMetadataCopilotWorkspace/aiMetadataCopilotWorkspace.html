@@ -1,215 +1,283 @@
 <template>
-    <lightning-card title="AI Metadata Copilot" icon-name="standard:bot">
-        <div class="workspace">
-            <div class="workspace-actions">
-                <lightning-button
-                    label="Refresh Metadata Core"
-                    variant="brand"
-                    onclick={handleRefresh}
-                    disabled={isLoading}
-                ></lightning-button>
+    <div class="app-root">
+        <header class="header">
+            <div class="header-brand">
+                <span class="header-logo">Metadata Copilot</span>
+                <template if:true={healthStatus}>
+                    <span class="header-health">{healthSummary}</span>
+                </template>
             </div>
+            <div class="header-actions">
+                <lightning-button-icon icon-name="utility:refresh" alternative-text="Refresh" variant="bare" onclick={loadHealthStatus}></lightning-button-icon>
+            </div>
+        </header>
 
-            <template if:true={refreshMessage}>
-                <div class="banner success-banner">{refreshMessage}</div>
-            </template>
+        <template if:true={errorMessage}>
+            <div class="alert alert-error">{errorMessage}</div>
+        </template>
 
-            <template if:true={errorMessage}>
-                <div class="banner error-banner">{errorMessage}</div>
-            </template>
+        <template if:true={refreshResult}>
+            <div class="alert alert-success">
+                Metadata refreshed: {refreshResult.indexedItems} items, {refreshResult.usageRelationships} relationships
+            </div>
+        </template>
 
-            <lightning-tabset active-tab-value={activeTab} onactive={handleTabChange}>
-                <lightning-tab label="Search Workspace" value="search">
-                    <div class="tab-panel">
-                        <lightning-textarea
-                            label="Ask a metadata question"
-                            value={searchPrompt}
-                            onchange={handleSearchPromptChange}
-                            placeholder="Where is Patient_Status__c used?"
-                        ></lightning-textarea>
-                        <lightning-button
-                            label="Run Metadata Search"
-                            variant="brand-outline"
-                            onclick={handleSearch}
-                            disabled={isLoading}
-                        ></lightning-button>
-                        <template if:true={searchResponse}>
-                            <div class="summary-box">
-                                <p><strong>Severity:</strong> {searchResponse.severity}</p>
-                                <p><strong>Summary:</strong> {searchResponse.summary}</p>
-                                <p><strong>Explanation:</strong> {searchResponse.explanation}</p>
-                            </div>
-                            <lightning-datatable
-                                key-field="metadataKey"
-                                data={searchResponse.matchedComponents}
-                                columns={searchColumns}
-                                hide-checkbox-column
-                            ></lightning-datatable>
-                        </template>
+        <lightning-tabset active-tab-value={activeTab} onactive={handleTabChange}>
+            <lightning-tab label="Search" value="search">
+                <div class="panel">
+                    <p class="panel-desc">Find where fields, objects, flows, or Apex are used across metadata.</p>
+
+                    <div class="mode-toggle">
+                        <lightning-button-icon-stateful
+                            icon-name="utility:switch"
+                            selected={isSearchSimple}
+                            alternative-text="Toggle mode"
+                            variant="border"
+                            value={searchMode}
+                            onclick={handleSearchModeChange}
+                        ></lightning-button-icon-stateful>
+                        <span class="mode-label">{searchModeLabel}</span>
                     </div>
-                </lightning-tab>
 
-                <lightning-tab label="Impact Analysis Workspace" value="impact">
-                    <div class="tab-panel">
-                        <lightning-textarea
-                            label="Ask an impact question"
-                            value={impactPrompt}
-                            onchange={handleImpactPromptChange}
-                            placeholder="If I rename Contact.Email what breaks?"
-                        ></lightning-textarea>
-                        <lightning-button
-                            label="Analyze Impact"
-                            variant="brand-outline"
-                            onclick={handleImpact}
-                            disabled={isLoading}
-                        ></lightning-button>
-                        <template if:true={impactResponse}>
-                            <div class="summary-box">
-                                <p><strong>Severity:</strong> {impactResponse.severity}</p>
-                                <p><strong>Summary:</strong> {impactResponse.summary}</p>
-                                <p><strong>Explanation:</strong> {impactResponse.explanation}</p>
-                            </div>
-                            <lightning-datatable
-                                key-field="metadataKey"
-                                data={impactResponse.impactedComponents}
-                                columns={searchColumns}
-                                hide-checkbox-column
-                            ></lightning-datatable>
+                    <template if:true={isSearchSimple}>
+                        <div class="input-row">
+                            <lightning-combobox
+                                label="Query Type"
+                                value={searchQueryType}
+                                options={queryTypeOptions}
+                                onchange={handleSearchQueryTypeChange}
+                            ></lightning-combobox>
+                            <lightning-input
+                                label="API Name"
+                                value={searchQueryText}
+                                onchange={handleSearchQueryTextChange}
+                                placeholder="Account.CustomerPriority__c"
+                            ></lightning-input>
+                            <lightning-button label="Search" variant="brand" onclick={handleSearch} disabled={isLoading} class="btn-action"></lightning-button>
+                        </div>
+                    </template>
+
+                    <template if:false={isSearchSimple}>
+                        <div class="input-row">
+                            <lightning-textarea
+                                label="Ask a question"
+                                value={searchPrompt}
+                                onchange={handleSearchPromptChange}
+                                placeholder="Where is Patient_Status__c used?"
+                            ></lightning-textarea>
+                            <lightning-button label="Search" variant="brand" onclick={handleSearch} disabled={isLoading} class="btn-action"></lightning-button>
+                        </div>
+                    </template>
+
+                    <template if:true={searchResponse}>
+                        <div class="card">
+                            <span class="badge {severityClass(searchResponse)}">{searchResponse.severity || 'Low'}</span>
+                            <span class="card-summary">{searchResponse.summary}</span>
+                        </div>
+                    </template>
+
+                    <template if:true={hasSearchResults}>
+                        <lightning-datatable key-field="usageId" data={searchResponse.matchedComponents} columns={searchColumns} hide-checkbox-column></lightning-datatable>
+                    </template>
+
+                    <template if:true={searchResponse}>
+                        <template if:false={hasSearchResults}>
+                            <div class="empty-state">No matching relationships. Try a different API name or refresh metadata.</div>
                         </template>
-                    </div>
-                </lightning-tab>
+                    </template>
+                </div>
+            </lightning-tab>
 
-                <lightning-tab label="Security Audit Workspace" value="security">
-                    <div class="tab-panel">
+            <lightning-tab label="Impact" value="impact">
+                <div class="panel">
+                    <p class="panel-desc">Understand what breaks before changing metadata.</p>
+
+                    <div class="mode-toggle">
+                        <lightning-button-icon-stateful
+                            icon-name="utility:switch"
+                            selected={isImpactSimple}
+                            alternative-text="Toggle mode"
+                            variant="border"
+                            value={impactMode}
+                            onclick={handleImpactModeChange}
+                        ></lightning-button-icon-stateful>
+                        <span class="mode-label">{impactModeLabel}</span>
+                    </div>
+
+                    <template if:true={isImpactSimple}>
+                        <div class="input-row">
+                            <lightning-combobox
+                                label="Query Type"
+                                value={impactQueryType}
+                                options={queryTypeOptions}
+                                onchange={handleImpactQueryTypeChange}
+                            ></lightning-combobox>
+                            <lightning-input
+                                label="API Name"
+                                value={impactQueryText}
+                                onchange={handleImpactQueryTextChange}
+                                placeholder="Account.CustomerPriority__c"
+                            ></lightning-input>
+                            <lightning-button label="Analyze" variant="brand" onclick={handleImpact} disabled={isLoading} class="btn-action"></lightning-button>
+                        </div>
+                    </template>
+
+                    <template if:false={isImpactSimple}>
+                        <div class="input-row">
+                            <lightning-textarea
+                                label="Ask a question"
+                                value={impactPrompt}
+                                onchange={handleImpactPromptChange}
+                                placeholder="If I rename Contact.Email what breaks?"
+                            ></lightning-textarea>
+                            <lightning-button label="Analyze" variant="brand" onclick={handleImpact} disabled={isLoading} class="btn-action"></lightning-button>
+                        </div>
+                    </template>
+
+                    <template if:true={impactResponse}>
+                        <div class="card">
+                            <span class="badge {severityClass(impactResponse)}">{impactResponse.severity || 'Low'}</span>
+                            <span class="card-summary">{impactResponse.summary}</span>
+                        </div>
+                    </template>
+
+                    <template if:true={hasImpactResults}>
+                        <lightning-datatable key-field="usageId" data={impactResponse.impactedComponents} columns={searchColumns} hide-checkbox-column></lightning-datatable>
+                    </template>
+
+                    <template if:true={impactResponse}>
+                        <template if:false={hasImpactResults}>
+                            <div class="empty-state">No dependencies found. Refresh metadata for current results.</div>
+                        </template>
+                    </template>
+                </div>
+            </lightning-tab>
+
+            <lightning-tab label="Security" value="security">
+                <div class="panel">
+                    <p class="panel-desc">Check field and object access across profiles and permission sets.</p>
+
+                    <div class="input-row">
                         <lightning-textarea
-                            label="Ask a security audit question"
+                            label="Field, object, or question"
                             value={securityPrompt}
                             onchange={handleSecurityPromptChange}
-                            placeholder="Who can access Member__c sensitive fields?"
+                            placeholder="Patient_Status__c  /  Who can access Contact.Email?  /  Account.CustomerPriority__c"
                         ></lightning-textarea>
-                        <lightning-button
-                            label="Run Security Audit"
-                            variant="brand-outline"
-                            onclick={handleSecurity}
-                            disabled={isLoading}
-                        ></lightning-button>
-                        <template if:true={securityResponse}>
-                            <div class="summary-box">
-                                <p><strong>Severity:</strong> {securityResponse.severity}</p>
-                                <p><strong>Summary:</strong> {securityResponse.summary}</p>
-                                <p><strong>Explanation:</strong> {securityResponse.explanation}</p>
-                            </div>
-                            <lightning-datatable
-                                key-field="summary"
-                                data={securityResponse.findings}
-                                columns={securityColumns}
-                                hide-checkbox-column
-                            ></lightning-datatable>
-                        </template>
+                        <lightning-button label="Audit" variant="brand" onclick={handleSecurity} disabled={isLoading} class="btn-action"></lightning-button>
                     </div>
-                </lightning-tab>
 
-                <lightning-tab label="Deployment Assistant Workspace" value="deployment">
-                    <div class="tab-panel two-column">
-                        <lightning-input
-                            label="Source Environment"
-                            value={sourceEnvironment}
-                            onchange={handleSourceEnvironmentChange}
-                        ></lightning-input>
-                        <lightning-input
-                            label="Target Environment"
-                            value={targetEnvironment}
-                            onchange={handleTargetEnvironmentChange}
-                        ></lightning-input>
-                        <lightning-button
-                            label="Compare Environments"
-                            variant="brand-outline"
-                            onclick={handleDeploymentCompare}
-                            disabled={isLoading}
-                        ></lightning-button>
-                        <template if:true={deploymentResponse}>
-                            <div class="summary-box full-width">
-                                <p><strong>Severity:</strong> {deploymentResponse.severity}</p>
-                                <p><strong>Readiness Score:</strong> {deploymentResponse.readinessScore}</p>
-                                <p><strong>Summary:</strong> {deploymentResponse.summary}</p>
-                                <p><strong>Explanation:</strong> {deploymentResponse.explanation}</p>
-                            </div>
-                            <lightning-datatable
-                                key-field="metadataKey"
-                                data={deploymentResponse.findings}
-                                columns={deploymentColumns}
-                                hide-checkbox-column
-                            ></lightning-datatable>
+                    <p class="help-text">Enter a field name (e.g. <code>Patient_Status__c</code>), an object (e.g. <code>Account</code>), Object.Field syntax, or a natural language question.</p>
+
+                    <template if:true={securityResponse}>
+                        <div class="card">
+                            <span class="badge {severityClass(securityResponse)}">{securityResponse.severity || 'Low'}</span>
+                            <span class="card-summary">{securityResponse.summary}</span>
+                        </div>
+                    </template>
+
+                    <template if:true={hasSecurityResults}>
+                        <lightning-datatable key-field="summary" data={securityResponse.findings} columns={securityColumns} hide-checkbox-column></lightning-datatable>
+                    </template>
+
+                    <template if:true={securityResponse}>
+                        <template if:false={hasSecurityResults}>
+                            <div class="empty-state">No access findings for this scope. The field may not be classified as sensitive.</div>
                         </template>
-                    </div>
-                </lightning-tab>
+                    </template>
+                </div>
+            </lightning-tab>
 
-                <lightning-tab label="Documentation Generator Workspace" value="documentation">
-                    <div class="tab-panel two-column">
-                        <lightning-input
-                            label="Metadata Key"
-                            value={documentationMetadataKey}
-                            onchange={handleDocumentationMetadataKeyChange}
-                            placeholder="CustomField:Account.CustomerPriority__c"
-                        ></lightning-input>
-                        <lightning-combobox
-                            label="Request Type"
-                            value={documentationRequestType}
-                            options={documentationTypeOptions}
-                            onchange={handleDocumentationTypeChange}
-                        ></lightning-combobox>
-                        <lightning-button
-                            label="Generate Documentation"
-                            variant="brand-outline"
-                            onclick={handleDocumentation}
-                            disabled={isLoading}
-                        ></lightning-button>
-                        <template if:true={documentationResponse}>
-                            <div class="summary-box full-width">
-                                <p><strong>Summary:</strong> {documentationResponse.summary}</p>
-                                <p><strong>Technical Summary:</strong> {documentationResponse.technicalSummary}</p>
-                                <p><strong>Business Summary:</strong> {documentationResponse.businessSummary}</p>
+            <lightning-tab label="Deploy" value="deployment">
+                <div class="panel panel-cols">
+                    <p class="panel-desc full">Compare environments before deployment.</p>
+                    <lightning-input label="Source" value={sourceEnvironment} onchange={handleSourceEnvChange}></lightning-input>
+                    <lightning-input label="Target" value={targetEnvironment} onchange={handleTargetEnvChange}></lightning-input>
+                    <lightning-button label="Compare" variant="brand" onclick={handleDeploymentCompare} disabled={isLoading} class="btn-action full"></lightning-button>
+
+                    <template if:true={deploymentResponse}>
+                        <div class="card full">
+                            <span class="badge {severityClass(deploymentResponse)}">{deploymentResponse.severity}</span>
+                            <span>Readiness: <strong>{deploymentResponse.readinessScore}</strong></span>
+                            <span class="card-summary">{deploymentResponse.summary}</span>
+                        </div>
+                    </template>
+
+                    <template if:true={hasDeploymentResults}>
+                        <lightning-datatable key-field="metadataKey" data={deploymentResponse.findings} columns={deploymentColumns} hide-checkbox-column class="full"></lightning-datatable>
+                    </template>
+                </div>
+            </lightning-tab>
+
+            <lightning-tab label="Optimize" value="optimization">
+                <div class="panel">
+                    <p class="panel-desc">Scan for unused fields, duplicate flows, hardcoded IDs, and risky triggers.</p>
+                    <lightning-button label="Run Scan" variant="brand" onclick={handleOptimization} disabled={isLoading}></lightning-button>
+
+                    <template if:true={optimizationResponse}>
+                        <div class="card">
+                            <span class="badge {severityClass(optimizationResponse)}">{optimizationResponse.severity}</span>
+                            <span class="card-summary">{optimizationResponse.summary}</span>
+                        </div>
+                    </template>
+
+                    <template if:true={hasOptimizationResults}>
+                        <lightning-datatable key-field="metadataKey" data={optimizationResponse.findings} columns={optimizationColumns} hide-checkbox-column></lightning-datatable>
+                    </template>
+                </div>
+            </lightning-tab>
+
+            <lightning-tab label="Admin" value="admin">
+                <div class="panel">
+                    <p class="panel-desc">System diagnostics, refresh, and setup.</p>
+
+                    <div class="admin-row">
+                        <lightning-button label="Refresh Metadata" variant="brand" onclick={handleRefresh} disabled={isLoading}></lightning-button>
+                        <lightning-button label="Check Health" variant="neutral" onclick={loadHealthStatus}></lightning-button>
+                    </div>
+
+                    <template if:true={healthStatus}>
+                        <div class="stats-grid">
+                            <div class="stat-cell">
+                                <span class="stat-num">{healthStatus.indexedItemCount}</span>
+                                <span class="stat-label">Indexed</span>
                             </div>
-                        </template>
-                    </div>
-                </lightning-tab>
-
-                <lightning-tab label="Optimization Scanner Workspace" value="optimization">
-                    <div class="tab-panel">
-                        <lightning-button
-                            label="Run Optimization Scan"
-                            variant="brand-outline"
-                            onclick={handleOptimization}
-                            disabled={isLoading}
-                        ></lightning-button>
-                        <template if:true={optimizationResponse}>
-                            <div class="summary-box">
-                                <p><strong>Severity:</strong> {optimizationResponse.severity}</p>
-                                <p><strong>Summary:</strong> {optimizationResponse.summary}</p>
-                                <p><strong>Explanation:</strong> {optimizationResponse.explanation}</p>
+                            <div class="stat-cell">
+                                <span class="stat-num">{healthStatus.usageRecordCount}</span>
+                                <span class="stat-label">Relationships</span>
                             </div>
-                            <lightning-datatable
-                                key-field="metadataKey"
-                                data={optimizationResponse.findings}
-                                columns={optimizationColumns}
-                                hide-checkbox-column
-                            ></lightning-datatable>
-                        </template>
-                    </div>
-                </lightning-tab>
+                            <div class="stat-cell">
+                                <span class="stat-num">{healthStatus.snapshotCount}</span>
+                                <span class="stat-label">Snapshots</span>
+                            </div>
+                        </div>
 
-                <lightning-tab label="Admin Configuration Workspace" value="admin">
-                    <div class="tab-panel">
-                        <p>This workspace is ready for Prompt Builder assets, Agentforce topic mapping, sensitive field rules, and environment connection configuration.</p>
-                        <ul class="admin-list">
-                            <li>Configure `Agent_Action_Config__mdt` records for each action.</li>
-                            <li>Configure `Sensitive_Field_Rule__mdt` for PHI and claims-sensitive fields.</li>
-                            <li>Configure `Environment_Connection__mdt` for allowed compare targets.</li>
-                            <li>Create Prompt Builder assets named in the implementation plan.</li>
+                        <template if:true={healthStatus.warnings}>
+                            <template for:each={healthStatus.warnings} for:item="warn">
+                                <div class="alert alert-warn" key={warn}>{warn}</div>
+                            </template>
+                        </template>
+
+                        <template if:true={healthStatus.recommendations}>
+                            <ul class="setup-list">
+                                <template for:each={healthStatus.recommendations} for:item="rec">
+                                    <li key={rec}>{rec}</li>
+                                </template>
+                            </ul>
+                        </template>
+                    </template>
+
+                    <div class="setup-box">
+                        <strong>Setup checklist</strong>
+                        <ul class="setup-list">
+                            <li>Configure Named Credential <code>SalesforceTooling</code></li>
+                            <li>Verify <code>Agent_Action_Config__mdt</code> records</li>
+                            <li>Add <code>Sensitive_Field_Rule__mdt</code> for PHI fields</li>
+                            <li>Check <code>Environment_Connection__mdt</code> for compare targets</li>
                         </ul>
                     </div>
-                </lightning-tab>
-            </lightning-tabset>
-        </div>
-    </lightning-card>
+                </div>
+            </lightning-tab>
+        </lightning-tabset>
+    </div>
 </template>

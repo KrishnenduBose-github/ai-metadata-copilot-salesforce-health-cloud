@@ -1,5 +1,6 @@
 public with sharing class AiMetadataCopilotModels {
     public class MatchedComponent {
+        @AuraEnabled public Id usageId;
         @AuraEnabled public String metadataKey;
         @AuraEnabled public String metadataName;
         @AuraEnabled public String metadataType;

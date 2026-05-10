@@ -1,23 +1,69 @@
 public with sharing class AiAgentActionService {
-    private MetadataNormalizationService normalizationService = new MetadataNormalizationService();
-    private MetadataSearchService metadataSearchService = new MetadataSearchService();
-    private MetadataImpactAnalysisService metadataImpactAnalysisService =
-        new MetadataImpactAnalysisService(metadataSearchService);
-    private MetadataExplainabilityService explainabilityService = new MetadataExplainabilityService();
-    private AiPromptGroundingService promptGroundingService = new AiPromptGroundingService();
-    private AiGuardrailService guardrailService = new AiGuardrailService();
-    private AiResponseFormatter responseFormatter = new AiResponseFormatter();
+    @TestVisible
+    private MetadataNormalizationService normalizationService;
+    @TestVisible
+    private MetadataSearchService metadataSearchService;
+    @TestVisible
+    private MetadataImpactAnalysisService metadataImpactAnalysisService;
+    @TestVisible
+    private MetadataExplainabilityService explainabilityService;
+    @TestVisible
+    private AiPromptGroundingService promptGroundingService;
+    @TestVisible
+    private AiGuardrailService guardrailService;
+    @TestVisible
+    private AiResponseFormatter responseFormatter;
+
+    public AiAgentActionService() {
+        this(
+            new MetadataNormalizationService(),
+            new MetadataSearchService(),
+            new MetadataExplainabilityService(),
+            new AiPromptGroundingService(),
+            new AiGuardrailService(),
+            new AiResponseFormatter()
+        );
+    }
+
+    @TestVisible
+    private AiAgentActionService(
+        MetadataNormalizationService normalizationService,
+        MetadataSearchService metadataSearchService,
+        MetadataExplainabilityService explainabilityService,
+        AiPromptGroundingService promptGroundingService,
+        AiGuardrailService guardrailService,
+        AiResponseFormatter responseFormatter
+    ) {
+        this.normalizationService = normalizationService;
+        this.metadataSearchService = metadataSearchService;
+        this.explainabilityService = explainabilityService;
+        this.promptGroundingService = promptGroundingService;
+        this.guardrailService = guardrailService;
+        this.responseFormatter = responseFormatter;
+        this.metadataImpactAnalysisService = new MetadataImpactAnalysisService(this.metadataSearchService);
+    }
 
     public AiMetadataCopilotModels.MetadataSearchResponse searchMetadata(
         AiMetadataCopilotModels.MetadataSearchRequest request
     ) {
+        MetadataLogger.info('AiAgentActionService', 'searchMetadata invoked: queryText=' + request.queryText + ', userPrompt=' + request.userPrompt);
+
         if (String.isBlank(request.queryText)) {
+            if (String.isBlank(request.userPrompt)) {
+                return emptySearchResponse('No search input provided.');
+            }
+            guardrailService.validateReadOnlyPrompt(request.userPrompt);
             request = normalizationService.normalizeSearchRequest(request.userPrompt);
+        } else {
+            guardrailService.validateReadOnlyPrompt(request.queryText);
         }
 
-        guardrailService.validateReadOnlyPrompt(request.userPrompt);
+        if (String.isBlank(request.queryText)) {
+            MetadataLogger.warn('AiAgentActionService', 'Normalization could not extract a metadata token from: ' + request.userPrompt);
+            return emptySearchResponse('Could not identify a metadata token in your query. Try an explicit API name like Account.Industry or Patient_Status__c.');
+        }
 
-        List<MetadataSearchService.SearchResultRow> rows = request.queryType == 'ObjectUsage'
+        List<MetadataSearchService.SearchResultRow> rows = 'ObjectUsage' == request.queryType
             ? metadataSearchService.searchObjectUsage(request.queryText)
             : metadataSearchService.searchFieldUsage(request.queryText);
         List<AiMetadataCopilotModels.MatchedComponent> components =
@@ -30,29 +76,71 @@ public with sharing class AiAgentActionService {
         response.matchedComponents = components;
         response.score = responseFormatter.toScore(rows.size(), 10, 100);
         response.severity = responseFormatter.severityFromScore(response.score);
-        response.summary =
-            'Found ' + String.valueOf(rows.size()) + ' grounded metadata relationship(s) for ' + request.queryText + '.';
+        response.summary = buildSearchSummaryMessage(request, rows.size());
         response.explanation = explainabilityService.buildSearchExplanation(components);
         response.recommendations = explainabilityService.buildSearchRecommendations(
             request.queryType,
             rows.size()
         );
+
+        MetadataLogger.info('AiAgentActionService', 'searchMetadata completed: ' + rows.size() + ' rows for ' + request.queryText);
+        persistSearchHistory(request.userPrompt, request.queryText, request.queryType);
         return response;
+    }
+
+    private void persistSearchHistory(String userPrompt, String queryText, String queryType) {
+        if (!Schema.sObjectType.Documentation_Request__c.isCreateable()) {
+            return;
+        }
+
+        try {
+            Documentation_Request__c history = new Documentation_Request__c();
+            history.Request_Key__c = 'SearchHistory:' + String.valueOf(System.now().getTime());
+            history.Request_Type__c = 'Search:' + queryType;
+            history.Metadata_Key__c = queryText;
+            history.Technical_Summary__c = userPrompt;
+            history.Business_Summary__c = queryType + ' search for ' + queryText;
+            history.Status__c = 'Completed';
+            Database.insert(history, false);
+        } catch (Exception ex) {
+            MetadataLogger.warn('AiAgentActionService', 'Failed to persist search history: ' + ex.getMessage());
+        }
+    }
+
+    private static String buildSearchSummaryMessage(
+        AiMetadataCopilotModels.MetadataSearchRequest request,
+        Integer matchCount
+    ) {
+        String target = String.isBlank(request.queryText) ? request.userPrompt : request.queryText;
+        if (matchCount == 0) {
+            return 'No metadata relationships found for "' + target + '". Try refreshing metadata first (Admin tab) if the org changed recently.';
+        }
+        return 'Found ' + String.valueOf(matchCount) + ' grounded metadata relationship(s) for "' + target + '".';
     }
 
     public AiMetadataCopilotModels.ImpactAnalysisResponse analyzeImpact(
         AiMetadataCopilotModels.ImpactAnalysisRequest request
     ) {
+        MetadataLogger.info('AiAgentActionService', 'analyzeImpact invoked: queryText=' + request.queryText + ', userPrompt=' + request.userPrompt);
+
         if (String.isBlank(request.queryText)) {
+            if (String.isBlank(request.userPrompt)) {
+                return emptyImpactResponse('No impact analysis input provided.');
+            }
             request = normalizationService.normalizeImpactRequest(request.userPrompt);
         }
 
-        MetadataImpactAnalysisService.ImpactSummaryResult summaryResult = request.queryType == 'ObjectUsage'
-            ? metadataImpactAnalysisService.analyzeObjectUsage(request.queryText)
-            : metadataImpactAnalysisService.analyzeFieldUsage(request.queryText);
-        List<MetadataSearchService.SearchResultRow> rows = request.queryType == 'ObjectUsage'
+        if (String.isBlank(request.queryText)) {
+            MetadataLogger.warn('AiAgentActionService', 'Normalization could not extract impact token from: ' + request.userPrompt);
+            return emptyImpactResponse('Could not identify a metadata token for impact analysis. Use explicit API name syntax.');
+        }
+
+        List<MetadataSearchService.SearchResultRow> rows = 'ObjectUsage' == request.queryType
             ? metadataSearchService.searchObjectUsage(request.queryText)
             : metadataSearchService.searchFieldUsage(request.queryText);
+        MetadataImpactAnalysisService.ImpactSummaryResult summaryResult = 'ObjectUsage' == request.queryType
+            ? metadataImpactAnalysisService.analyzeObjectUsage(rows, request.queryText)
+            : metadataImpactAnalysisService.analyzeFieldUsage(rows, request.queryText);
         List<AiMetadataCopilotModels.MatchedComponent> impactedComponents =
             promptGroundingService.buildGroundedComponents(rows);
 
@@ -61,7 +149,9 @@ public with sharing class AiAgentActionService {
         response.summary = summaryResult.summary;
         response.severity = summaryResult.impactLevel;
         response.score = responseFormatter.toScore(rows.size(), 12, 100);
-        response.explanation = explainabilityService.buildSearchExplanation(impactedComponents);
+        response.explanation = rows.isEmpty()
+            ? 'No dependent components found for "' + request.queryText + '". Refresh metadata for current results.'
+            : explainabilityService.buildSearchExplanation(impactedComponents);
         response.impactedComponents = impactedComponents;
         response.assessmentId = summaryResult.assessmentId;
         response.deploymentCautions = explainabilityService.buildImpactRecommendations(summaryResult.impactLevel);
@@ -69,7 +159,39 @@ public with sharing class AiAgentActionService {
             request.queryText,
             impactedComponents
         );
+
+        MetadataLogger.info('AiAgentActionService', 'analyzeImpact completed: ' + rows.size() + ' rows for ' + request.queryText);
         return response;
+    }
+
+    private static AiMetadataCopilotModels.MetadataSearchResponse emptySearchResponse(String message) {
+        AiMetadataCopilotModels.MetadataSearchResponse empty =
+            new AiMetadataCopilotModels.MetadataSearchResponse();
+        empty.normalizedQueryType = 'FieldUsage';
+        empty.matchedComponents = new List<AiMetadataCopilotModels.MatchedComponent>();
+        empty.score = 0;
+        empty.severity = 'Low';
+        empty.summary = message;
+        empty.explanation = 'Use Direct API Name mode with explicit field or object names for reliable results.';
+        empty.recommendations = new List<String>{
+            'Use an exact API name ending with __c for custom fields.',
+            'Search by Object.Field format (e.g. Account.Industry).',
+            'Refresh metadata before searching if the org recently changed.'
+        };
+        return empty;
+    }
+
+    private static AiMetadataCopilotModels.ImpactAnalysisResponse emptyImpactResponse(String message) {
+        AiMetadataCopilotModels.ImpactAnalysisResponse empty =
+            new AiMetadataCopilotModels.ImpactAnalysisResponse();
+        empty.summary = message;
+        empty.severity = 'Low';
+        empty.score = 0;
+        empty.explanation = 'Use Direct API Name mode with explicit field or object names for reliable results.';
+        empty.impactedComponents = new List<AiMetadataCopilotModels.MatchedComponent>();
+        empty.deploymentCautions = new List<String>();
+        empty.regressionTestAreas = new List<String>();
+        return empty;
     }
 
     public AiMetadataCopilotModels.SecurityAuditResponse runSecurityAudit(
@@ -147,7 +269,15 @@ public with sharing class AiAgentActionService {
             findingIndex++;
         }
 
-        insert recordsToUpsert;
+        if (recordsToUpsert.isEmpty()) {
+            return;
+        }
+
+        try {
+            Database.insert(recordsToUpsert, false);
+        } catch (Exception ex) {
+            MetadataLogger.warn('AiAgentActionService', 'Failed to persist optimization findings: ' + ex.getMessage());
+        }
     }
 
 }

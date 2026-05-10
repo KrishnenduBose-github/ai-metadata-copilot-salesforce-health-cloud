@@ -1,22 +1,27 @@
 public with sharing class UnusedMetadataScanner {
     public List<AiMetadataCopilotModels.OptimizationFindingRow> scan() {
         Set<String> usedTargets = new Set<String>();
-        for (Metadata_Usage__c usageRecord : [
-            SELECT Target_Key__c
-            FROM Metadata_Usage__c
-            WHERE Target_Key__c != null
-        ]) {
-            usedTargets.add(usageRecord.Target_Key__c);
+        if (Schema.sObjectType.Metadata_Usage__c.isAccessible()) {
+            for (Metadata_Usage__c usageRecord : [
+                SELECT Target_Key__c
+                FROM Metadata_Usage__c
+                WHERE Target_Key__c != null
+                LIMIT 5000
+            ]) {
+                usedTargets.add(usageRecord.Target_Key__c);
+            }
         }
 
         List<AiMetadataCopilotModels.OptimizationFindingRow> findings =
             new List<AiMetadataCopilotModels.OptimizationFindingRow>();
 
-        for (Metadata_Item__c item : [
-            SELECT Metadata_Key__c, Api_Name__c, Metadata_Type__c
-            FROM Metadata_Item__c
-            WHERE Metadata_Type__c = 'CustomField'
-        ]) {
+        if (Schema.sObjectType.Metadata_Item__c.isAccessible()) {
+            for (Metadata_Item__c item : [
+                SELECT Metadata_Key__c, Api_Name__c, Metadata_Type__c
+                FROM Metadata_Item__c
+                WHERE Metadata_Type__c = 'CustomField'
+                LIMIT 5000
+            ]) {
             if (usedTargets.contains(item.Metadata_Key__c)) {
                 continue;
             }
@@ -29,6 +34,7 @@ public with sharing class UnusedMetadataScanner {
             finding.summary = item.Api_Name__c + ' has no detected incoming usage in the current index.';
             finding.recommendation = 'Validate with admins before cleanup because text-based analysis may miss dynamic usage.';
             findings.add(finding);
+        }
         }
 
         return findings;

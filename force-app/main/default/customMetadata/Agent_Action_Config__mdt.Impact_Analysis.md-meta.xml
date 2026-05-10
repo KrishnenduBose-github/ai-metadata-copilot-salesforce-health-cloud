@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <label>Impact Analysis</label>
+    <protected>false</protected>
+    <values>
+        <field>Action_Name__c</field>
+        <value xsi:type="xsd:string">analyzeImpact</value>
+    </values>
+    <values>
+        <field>Topic_Name__c</field>
+        <value xsi:type="xsd:string">Impact Analysis</value>
+    </values>
+    <values>
+        <field>Enabled__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>Prompt_Template_Name__c</field>
+        <value xsi:type="xsd:string">PB_ImpactRiskSummary</value>
+    </values>
+    <values>
+        <field>Guardrail_Note__c</field>
+        <value xsi:type="xsd:string">Keep impact responses explainable and recommend test areas instead of making changes automatically.</value>
+    </values>
+</CustomMetadata>

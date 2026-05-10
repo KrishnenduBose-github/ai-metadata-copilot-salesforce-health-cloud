@@ -70,6 +70,12 @@ public with sharing class MetadataIndexerService {
             return result;
         }
 
+        if (!Schema.sObjectType.Metadata_Item__c.isCreateable() || !Schema.sObjectType.Metadata_Item__c.isUpdateable()) {
+            result.errorCount = recordsToUpsert.size();
+            result.errors.add('Metadata indexing skipped because Metadata Item object is not writable.');
+            return result;
+        }
+
         Database.UpsertResult[] upsertResults = Database.upsert(
             recordsToUpsert,
             Metadata_Item__c.Fields.Metadata_Key__c,
@@ -91,6 +97,14 @@ public with sharing class MetadataIndexerService {
                 + ': '
                 + joinErrors(upsertResult.getErrors())
             );
+        }
+
+        if (MetadataStorageUtility.containsStorageLimitError(result.errors)) {
+            result.errors.clear();
+            result.errors.add(
+                'Metadata indexing was partially skipped because the org is low on storage. Some items could not be indexed.'
+            );
+            result.errorCount = 1;
         }
 
         return result;

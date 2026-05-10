@@ -8,6 +8,7 @@ public with sharing class AiPromptGroundingService {
         for (MetadataSearchService.SearchResultRow row : searchRows) {
             AiMetadataCopilotModels.MatchedComponent component =
                 new AiMetadataCopilotModels.MatchedComponent();
+            component.usageId = row.usageId;
             component.metadataKey = row.targetKey;
             component.metadataName = row.sourceMetadataName;
             component.metadataType = row.sourceMetadataType;

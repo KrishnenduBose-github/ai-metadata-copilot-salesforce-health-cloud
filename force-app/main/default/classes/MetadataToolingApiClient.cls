@@ -38,7 +38,16 @@ public with sharing class MetadataToolingApiClient {
         request.setTimeout(120000);
 
         Http http = new Http();
-        HttpResponse response = http.send(request);
+        HttpResponse response;
+
+        try {
+            response = http.send(request);
+        } catch (System.CalloutException calloutError) {
+            throw new ToolingApiException(
+                'Tooling API callout failed. Verify the Named Credential SalesforceTooling is configured. '
+                + calloutError.getMessage()
+            );
+        }
 
         return parseResponse(response);
     }

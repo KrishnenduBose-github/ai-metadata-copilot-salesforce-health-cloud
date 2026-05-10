@@ -19,6 +19,10 @@ public with sharing class MetadataSearchService {
             return new List<SearchResultRow>();
         }
 
+        if (!Schema.sObjectType.Metadata_Usage__c.isAccessible()) {
+            return new List<SearchResultRow>();
+        }
+
         String shortFieldName = normalizedInput.contains('.')
             ? normalizedInput.substringAfter('.')
             : normalizedInput;
@@ -46,6 +50,10 @@ public with sharing class MetadataSearchService {
     public List<SearchResultRow> searchObjectUsage(String objectApiName) {
         String normalizedInput = normalizeInput(objectApiName);
         if (String.isBlank(normalizedInput)) {
+            return new List<SearchResultRow>();
+        }
+
+        if (!Schema.sObjectType.Metadata_Usage__c.isAccessible()) {
             return new List<SearchResultRow>();
         }
 

@@ -89,7 +89,7 @@ public with sharing class SecurityAuditOrchestrator {
             runRecord.Started_On__c = System.now();
             runRecord.Completed_On__c = System.now();
             runRecord.Finding_Count__c = findings.size();
-            upsert runRecord Run_Key__c;
+            Database.upsert(runRecord, Security_Audit_Run__c.Fields.Run_Key__c, false);
         }
 
         if (!findings.isEmpty() && Schema.sObjectType.Security_Finding__c.isCreateable()) {
@@ -111,7 +111,7 @@ public with sharing class SecurityAuditOrchestrator {
                 findingIndex++;
             }
 
-            upsert findingRecords Finding_Key__c;
+            Database.upsert(findingRecords, Security_Finding__c.Fields.Finding_Key__c, false);
         }
     }
 }

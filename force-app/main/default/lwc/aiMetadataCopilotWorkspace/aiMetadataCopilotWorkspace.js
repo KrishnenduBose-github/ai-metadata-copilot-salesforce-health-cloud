@@ -4,35 +4,45 @@ import searchMetadata from '@salesforce/apex/AiMetadataCopilotController.searchM
 import analyzeImpact from '@salesforce/apex/AiMetadataCopilotController.analyzeImpact';
 import runSecurityAudit from '@salesforce/apex/AiMetadataCopilotController.runSecurityAudit';
 import compareEnvironments from '@salesforce/apex/AiMetadataCopilotController.compareEnvironments';
-import generateDocumentation from '@salesforce/apex/AiMetadataCopilotController.generateDocumentation';
 import runOptimizationScan from '@salesforce/apex/AiMetadataCopilotController.runOptimizationScan';
+import checkHealth from '@salesforce/apex/AiMetadataCopilotController.checkHealth';
 
 export default class AiMetadataCopilotWorkspace extends LightningElement {
     activeTab = 'search';
     isLoading = false;
     errorMessage = '';
-    refreshMessage = '';
 
+    searchMode = 'simple';
+    impactMode = 'simple';
     searchPrompt = '';
     impactPrompt = '';
+    searchQueryText = '';
+    searchQueryType = 'FieldUsage';
+    impactQueryText = '';
+    impactQueryType = 'FieldUsage';
     securityPrompt = '';
+    safetyFilter = true;
     sourceEnvironment = 'Current Sandbox';
     targetEnvironment = 'Previous Snapshot';
-    documentationMetadataKey = '';
-    documentationRequestType = 'ExplainComponent';
 
     searchResponse;
     impactResponse;
     securityResponse;
     deploymentResponse;
-    documentationResponse;
     optimizationResponse;
+    healthStatus;
+    refreshResult;
+
+    queryTypeOptions = [
+        { label: 'Field Usage', value: 'FieldUsage' },
+        { label: 'Object Usage', value: 'ObjectUsage' }
+    ];
 
     searchColumns = [
-        { label: 'Metadata Name', fieldName: 'metadataName' },
+        { label: 'Source Name', fieldName: 'metadataName' },
         { label: 'Metadata Type', fieldName: 'metadataType' },
         { label: 'Usage Type', fieldName: 'usageType' },
-        { label: 'Target Key', fieldName: 'metadataKey' },
+        { label: 'Target', fieldName: 'metadataKey' },
         { label: 'Context', fieldName: 'context' }
     ];
 
@@ -41,7 +51,7 @@ export default class AiMetadataCopilotWorkspace extends LightningElement {
         { label: 'Severity', fieldName: 'severity' },
         { label: 'Object', fieldName: 'objectApiName' },
         { label: 'Field', fieldName: 'fieldApiName' },
-        { label: 'Permission Artifact', fieldName: 'permissionArtifact' },
+        { label: 'Permission', fieldName: 'permissionArtifact' },
         { label: 'Summary', fieldName: 'summary' }
     ];
 
@@ -57,132 +67,164 @@ export default class AiMetadataCopilotWorkspace extends LightningElement {
         { label: 'Finding Type', fieldName: 'findingType' },
         { label: 'Severity', fieldName: 'severity' },
         { label: 'Metadata Key', fieldName: 'metadataKey' },
-        { label: 'Summary', fieldName: 'summary' },
-        { label: 'Recommendation', fieldName: 'recommendation' }
+        { label: 'Summary', fieldName: 'summary' }
     ];
 
-    documentationTypeOptions = [
-        { label: 'Explain Component', value: 'ExplainComponent' },
-        { label: 'Release Note', value: 'ReleaseNote' }
-    ];
-
-    handleTabChange(event) {
-        this.activeTab = event.target.value;
+    get hasSearchResults() {
+        return this.searchResponse && this.searchResponse.matchedComponents && this.searchResponse.matchedComponents.length > 0;
     }
 
-    handleSearchPromptChange(event) {
-        this.searchPrompt = event.target.value;
+    get hasImpactResults() {
+        return this.impactResponse && this.impactResponse.impactedComponents && this.impactResponse.impactedComponents.length > 0;
     }
 
-    handleImpactPromptChange(event) {
-        this.impactPrompt = event.target.value;
+    get hasSecurityResults() {
+        return this.securityResponse && this.securityResponse.findings && this.securityResponse.findings.length > 0;
     }
 
-    handleSecurityPromptChange(event) {
-        this.securityPrompt = event.target.value;
+    get hasDeploymentResults() {
+        return this.deploymentResponse && this.deploymentResponse.findings && this.deploymentResponse.findings.length > 0;
     }
 
-    handleSourceEnvironmentChange(event) {
-        this.sourceEnvironment = event.target.value;
+    get hasOptimizationResults() {
+        return this.optimizationResponse && this.optimizationResponse.findings && this.optimizationResponse.findings.length > 0;
     }
 
-    handleTargetEnvironmentChange(event) {
-        this.targetEnvironment = event.target.value;
+    get healthSummary() {
+        if (!this.healthStatus) return 'Loading...';
+        const h = this.healthStatus;
+        return `Items: ${h.indexedItemCount || 0} | Relationships: ${h.usageRecordCount || 0} | Snapshots: ${h.snapshotCount || 0}`;
     }
 
-    handleDocumentationMetadataKeyChange(event) {
-        this.documentationMetadataKey = event.target.value;
+    get isSearchSimple() { return this.searchMode === 'simple'; }
+    get isImpactSimple() { return this.impactMode === 'simple'; }
+    get searchModeLabel() { return this.isSearchSimple ? 'Direct API Name' : 'Natural Language'; }
+    get impactModeLabel() { return this.isImpactSimple ? 'Direct API Name' : 'Natural Language'; }
+
+    connectedCallback() {
+        this.loadHealthStatus();
     }
 
-    handleDocumentationTypeChange(event) {
-        this.documentationRequestType = event.detail.value;
+    handleTabChange(event) { this.activeTab = event.target.value; }
+    handleSearchModeChange(event) { this.searchMode = event.target.value; }
+    handleImpactModeChange(event) { this.impactMode = event.target.value; }
+
+    handleSearchPromptChange(event) { this.searchPrompt = this.readInput(event); }
+    handleImpactPromptChange(event) { this.impactPrompt = this.readInput(event); }
+    handleSearchQueryTextChange(event) { this.searchQueryText = this.readInput(event); }
+    handleSearchQueryTypeChange(event) { this.searchQueryType = this.readInput(event); }
+    handleImpactQueryTextChange(event) { this.impactQueryText = this.readInput(event); }
+    handleImpactQueryTypeChange(event) { this.impactQueryType = this.readInput(event); }
+    handleSecurityPromptChange(event) { this.securityPrompt = this.readInput(event); }
+    handleSourceEnvChange(event) { this.sourceEnvironment = this.readInput(event); }
+    handleTargetEnvChange(event) { this.targetEnvironment = this.readInput(event); }
+
+    readInput(event) {
+        if (event && event.detail && event.detail.value !== undefined) return event.detail.value;
+        return event && event.target ? event.target.value : '';
+    }
+
+    async loadHealthStatus() {
+        try {
+            this.healthStatus = await checkHealth();
+        } catch (error) {
+            this.healthStatus = { isHealthy: false, indexedItemCount: 0, usageRecordCount: 0, warnings: [this.reduceError(error)], recommendations: [] };
+        }
     }
 
     async handleRefresh() {
-        await this.runAsync(async () => {
-            const result = await refreshMetadataIndex();
-            this.refreshMessage =
-                'Refresh completed. Snapshot ' + result.snapshotKey +
-                ' indexed ' + result.indexedItems +
-                ' item(s) and created ' + result.usageRelationships +
-                ' usage relationship(s).';
-
-            if (result.messages && result.messages.length > 0) {
-                this.errorMessage = result.messages.join(' | ');
-            }
+        this.refreshResult = null;
+        await this.runOp(async () => {
+            this.refreshResult = await refreshMetadataIndex();
         });
+        await this.loadHealthStatus();
     }
 
     async handleSearch() {
-        await this.runAsync(async () => {
-            this.searchResponse = await searchMetadata({
-                request: {
-                    userPrompt: this.searchPrompt
+        await this.runOp(async () => {
+            if (this.isSearchSimple) {
+                if (!this.searchQueryText || !this.searchQueryText.trim()) {
+                    throw new Error('Enter a field or object API name.');
                 }
-            });
-        });
+                this.searchResponse = await searchMetadata({
+                    request: {
+                        queryText: this.searchQueryText,
+                        queryType: this.searchQueryType
+                    }
+                });
+            } else {
+                if (!this.searchPrompt || !this.searchPrompt.trim()) {
+                    throw new Error('Enter a metadata question.');
+                }
+                this.searchResponse = await searchMetadata({
+                    request: { userPrompt: this.searchPrompt }
+                });
+            }
+        }, () => { this.searchResponse = null; });
     }
 
     async handleImpact() {
-        await this.runAsync(async () => {
-            this.impactResponse = await analyzeImpact({
-                request: {
-                    userPrompt: this.impactPrompt
+        await this.runOp(async () => {
+            if (this.isImpactSimple) {
+                if (!this.impactQueryText || !this.impactQueryText.trim()) {
+                    throw new Error('Enter a field or object API name.');
                 }
-            });
-        });
+                this.impactResponse = await analyzeImpact({
+                    request: {
+                        queryText: this.impactQueryText,
+                        queryType: this.impactQueryType
+                    }
+                });
+            } else {
+                if (!this.impactPrompt || !this.impactPrompt.trim()) {
+                    throw new Error('Enter an impact question.');
+                }
+                this.impactResponse = await analyzeImpact({
+                    request: { userPrompt: this.impactPrompt }
+                });
+            }
+        }, () => { this.impactResponse = null; });
     }
 
     async handleSecurity() {
-        await this.runAsync(async () => {
+        await this.runOp(async () => {
+            if (!this.securityPrompt || !this.securityPrompt.trim()) {
+                throw new Error('Enter a security question or field name.');
+            }
             this.securityResponse = await runSecurityAudit({
                 request: {
                     userPrompt: this.securityPrompt
                 }
             });
-        });
+        }, () => { this.securityResponse = null; });
     }
 
     async handleDeploymentCompare() {
-        await this.runAsync(async () => {
+        await this.runOp(async () => {
+            if (!this.sourceEnvironment || !this.sourceEnvironment.trim()) throw new Error('Enter a source environment.');
+            if (!this.targetEnvironment || !this.targetEnvironment.trim()) throw new Error('Enter a target environment.');
             this.deploymentResponse = await compareEnvironments({
                 request: {
                     sourceEnvironment: this.sourceEnvironment,
                     targetEnvironment: this.targetEnvironment
                 }
             });
-        });
-    }
-
-    async handleDocumentation() {
-        await this.runAsync(async () => {
-            this.documentationResponse = await generateDocumentation({
-                request: {
-                    metadataKey: this.documentationMetadataKey,
-                    requestType: this.documentationRequestType
-                }
-            });
-        });
+        }, () => { this.deploymentResponse = null; });
     }
 
     async handleOptimization() {
-        await this.runAsync(async () => {
-            this.optimizationResponse = await runOptimizationScan({
-                request: {
-                    scanType: 'Full'
-                }
-            });
-        });
+        await this.runOp(async () => {
+            this.optimizationResponse = await runOptimizationScan({ request: { scanType: 'Full' } });
+        }, () => { this.optimizationResponse = null; });
     }
 
-    async runAsync(operation) {
+    async runOp(operation, onError) {
         this.isLoading = true;
         this.errorMessage = '';
-        this.refreshMessage = '';
-
         try {
             await operation();
         } catch (error) {
+            if (onError) onError();
             this.errorMessage = this.reduceError(error);
         } finally {
             this.isLoading = false;
@@ -190,14 +232,16 @@ export default class AiMetadataCopilotWorkspace extends LightningElement {
     }
 
     reduceError(error) {
-        if (error && error.body && error.body.message) {
-            return error.body.message;
-        }
-
-        if (error && error.message) {
-            return error.message;
-        }
-
+        if (error && error.body && error.body.message) return error.body.message;
+        if (error && error.message) return error.message;
         return 'An unexpected error occurred.';
+    }
+
+    severityClass(response) {
+        if (!response) return '';
+        const s = response.severity || '';
+        if (s === 'Critical' || s === 'High') return 'badge-red';
+        if (s === 'Medium') return 'badge-amber';
+        return 'badge-green';
     }
 }

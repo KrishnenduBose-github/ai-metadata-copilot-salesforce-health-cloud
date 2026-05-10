@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <label>Metadata Search</label>
+    <protected>false</protected>
+    <values>
+        <field>Action_Name__c</field>
+        <value xsi:type="xsd:string">searchMetadata</value>
+    </values>
+    <values>
+        <field>Topic_Name__c</field>
+        <value xsi:type="xsd:string">Metadata Search</value>
+    </values>
+    <values>
+        <field>Enabled__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
+        <field>Prompt_Template_Name__c</field>
+        <value xsi:type="xsd:string">PB_MetadataSearchSummary</value>
+    </values>
+    <values>
+        <field>Guardrail_Note__c</field>
+        <value xsi:type="xsd:string">Read-only metadata lookup grounded in stored metadata items and usage relationships.</value>
+    </values>
+</CustomMetadata>

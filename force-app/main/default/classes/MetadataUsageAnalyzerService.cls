@@ -78,6 +78,12 @@ public with sharing class MetadataUsageAnalyzerService {
             return result;
         }
 
+        if (!Schema.sObjectType.Metadata_Usage__c.isCreateable() || !Schema.sObjectType.Metadata_Usage__c.isUpdateable()) {
+            result.errorCount = usagesToUpsert.size();
+            result.errors.add('Usage persistence skipped because Metadata Usage object is not writable.');
+            return result;
+        }
+
         Database.UpsertResult[] upsertResults = Database.upsert(
             usagesToUpsert,
             Metadata_Usage__c.Fields.Usage_Key__c,
@@ -98,16 +104,29 @@ public with sharing class MetadataUsageAnalyzerService {
             }
         }
 
+        if (MetadataStorageUtility.containsStorageLimitError(result.errors)) {
+            result.errors.clear();
+            result.errors.add(
+                'Usage persistence was skipped because the org is low on storage. Metadata indexing still continued.'
+            );
+            result.errorCount = 1;
+        }
+
         return result;
     }
 
     private static Map<String, Metadata_Item__c> loadMetadataItemsByKey() {
         Map<String, Metadata_Item__c> results = new Map<String, Metadata_Item__c>();
 
+        if (!Schema.sObjectType.Metadata_Item__c.isAccessible()) {
+            return results;
+        }
+
         for (Metadata_Item__c item : [
             SELECT Id, Name, Metadata_Key__c, Metadata_Type__c, Api_Name__c, Object_API_Name__c, Field_API_Name__c
             FROM Metadata_Item__c
             WHERE Metadata_Key__c != null
+            LIMIT 5000
         ]) {
             results.put(item.Metadata_Key__c, item);
         }
@@ -116,10 +135,15 @@ public with sharing class MetadataUsageAnalyzerService {
     }
 
     private static List<Metadata_Item__c> loadMetadataItemsByType(String metadataType) {
+        if (!Schema.sObjectType.Metadata_Item__c.isAccessible()) {
+            return new List<Metadata_Item__c>();
+        }
+
         return [
             SELECT Id, Name, Metadata_Key__c, Metadata_Type__c, Api_Name__c, Object_API_Name__c, Field_API_Name__c
             FROM Metadata_Item__c
             WHERE Metadata_Type__c = :metadataType
+            LIMIT 5000
         ];
     }
 

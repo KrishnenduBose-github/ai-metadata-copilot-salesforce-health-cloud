@@ -4,6 +4,10 @@ public with sharing class FieldAccessAuditService {
             return new List<FieldPermissions>();
         }
 
+        if (!Schema.sObjectType.FieldPermissions.isAccessible()) {
+            return new List<FieldPermissions>();
+        }
+
         String fullFieldName = objectApiName + '.' + fieldApiName;
         return [
             SELECT Id, Field, PermissionsEdit, PermissionsRead, ParentId, SObjectType,
@@ -11,6 +15,7 @@ public with sharing class FieldAccessAuditService {
             FROM FieldPermissions
             WHERE SObjectType = :objectApiName
               AND Field = :fullFieldName
+            LIMIT 1000
         ];
     }
 }

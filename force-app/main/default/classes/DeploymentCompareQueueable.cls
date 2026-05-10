@@ -6,6 +6,10 @@ public with sharing class DeploymentCompareQueueable implements Queueable {
     }
 
     public void execute(QueueableContext context) {
-        new DeploymentRiskAssessmentService().assess(request);
+        try {
+            new DeploymentRiskAssessmentService().assess(request);
+        } catch (Exception ex) {
+            System.debug(LoggingLevel.ERROR, 'DeploymentCompareQueueable failed: ' + ex.getMessage());
+        }
     }
 }

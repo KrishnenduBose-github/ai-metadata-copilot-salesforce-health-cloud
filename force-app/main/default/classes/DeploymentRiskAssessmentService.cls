@@ -76,7 +76,7 @@ public with sharing class DeploymentRiskAssessmentService {
                 new RegressionTestRecommendationService().buildChecklistFromFindings(findings),
                 '\n'
             );
-            upsert assessment Assessment_Key__c;
+            Database.upsert(assessment, Deployment_Assessment__c.Fields.Assessment_Key__c, false);
         }
 
         if (!findings.isEmpty() && Schema.sObjectType.Deployment_Finding__c.isCreateable()) {
@@ -94,7 +94,7 @@ public with sharing class DeploymentRiskAssessmentService {
                 findingRecords.add(record);
                 indexValue++;
             }
-            upsert findingRecords Finding_Key__c;
+            Database.upsert(findingRecords, Deployment_Finding__c.Fields.Finding_Key__c, false);
         }
     }
 }
