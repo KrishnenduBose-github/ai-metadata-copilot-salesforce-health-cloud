@@ -23,26 +23,44 @@ public with sharing class MetadataSearchService {
             return new List<SearchResultRow>();
         }
 
-        String shortFieldName = normalizedInput.contains('.')
+        String targetKey = 'CustomField:' + normalizedInput;
+        Boolean isQualifiedFieldName = normalizedInput.contains('.');
+        String shortFieldName = isQualifiedFieldName
             ? normalizedInput.substringAfter('.')
             : normalizedInput;
 
-        List<Metadata_Usage__c> usageRecords = [
-            SELECT Id,
-                   Source_Key__c,
-                   Source_Type__c,
-                   Target_Key__c,
-                   Usage_Type__c,
-                   Match_Text__c,
-                   Context_Snippet__c,
-                   Source_Metadata__r.Name
-            FROM Metadata_Usage__c
-            WHERE Usage_Type__c = 'UsesField'
-              AND (Target_Key__c = :('CustomField:' + normalizedInput)
-                   OR Match_Text__c = :normalizedInput
-                   OR Match_Text__c = :shortFieldName)
-            ORDER BY Source_Type__c, Source_Key__c
-        ];
+        List<Metadata_Usage__c> usageRecords = isQualifiedFieldName
+            ? [
+                SELECT Id,
+                       Source_Key__c,
+                       Source_Type__c,
+                       Target_Key__c,
+                       Usage_Type__c,
+                       Match_Text__c,
+                       Context_Snippet__c,
+                       Source_Metadata__r.Name
+                FROM Metadata_Usage__c
+                WHERE Usage_Type__c = 'UsesField'
+                  AND (Target_Key__c = :targetKey
+                       OR Match_Text__c = :normalizedInput)
+                ORDER BY Source_Type__c, Source_Key__c
+            ]
+            : [
+                SELECT Id,
+                       Source_Key__c,
+                       Source_Type__c,
+                       Target_Key__c,
+                       Usage_Type__c,
+                       Match_Text__c,
+                       Context_Snippet__c,
+                       Source_Metadata__r.Name
+                FROM Metadata_Usage__c
+                WHERE Usage_Type__c = 'UsesField'
+                  AND (Target_Key__c = :targetKey
+                       OR Match_Text__c = :normalizedInput
+                       OR Match_Text__c = :shortFieldName)
+                ORDER BY Source_Type__c, Source_Key__c
+            ];
 
         return mapUsageRows(usageRecords);
     }

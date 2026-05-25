@@ -51,7 +51,10 @@ public with sharing class MetadataDocumentationService {
         String technicalSummary,
         String businessSummary
     ) {
-        if (!Schema.sObjectType.Documentation_Request__c.isCreateable()) {
+        if (
+            !MetadataRetentionService.optionalWritesAllowed()
+            || !Schema.sObjectType.Documentation_Request__c.isCreateable()
+        ) {
             return null;
         }
 

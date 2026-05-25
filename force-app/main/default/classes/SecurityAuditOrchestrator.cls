@@ -18,6 +18,7 @@ public with sharing class SecurityAuditOrchestrator {
     public AiMetadataCopilotModels.SecurityAuditResponse runAudit(
         AiMetadataCopilotModels.SecurityAuditRequest request
     ) {
+        request = normalizeRequestScope(request);
         List<SensitiveDataClassificationService.SensitiveTarget> targets =
             classificationService.getSensitiveTargets(request.objectApiName, request.fieldApiName);
         List<AiMetadataCopilotModels.SecurityFindingRow> findings =
@@ -49,6 +50,7 @@ public with sharing class SecurityAuditOrchestrator {
                 )
             );
         }
+        normalizeFindingScopes(findings);
 
         String runKey = 'SecurityAudit:' + String.valueOf(System.now().getTime());
         persistAudit(runKey, request, findings);
@@ -72,11 +74,55 @@ public with sharing class SecurityAuditOrchestrator {
         return response;
     }
 
+    private static AiMetadataCopilotModels.SecurityAuditRequest normalizeRequestScope(
+        AiMetadataCopilotModels.SecurityAuditRequest request
+    ) {
+        if (request == null) {
+            return new AiMetadataCopilotModels.SecurityAuditRequest();
+        }
+
+        if (String.isBlank(request.objectApiName) && !String.isBlank(request.fieldApiName) && request.fieldApiName.contains('.')) {
+            request.objectApiName = request.fieldApiName.substringBefore('.');
+            request.fieldApiName = request.fieldApiName.substringAfter('.');
+        }
+
+        if (!String.isBlank(request.objectApiName)) {
+            request.objectApiName = request.objectApiName.trim();
+        }
+
+        if (!String.isBlank(request.fieldApiName)) {
+            request.fieldApiName = request.fieldApiName.trim();
+        }
+
+        return request;
+    }
+
+    private static void normalizeFindingScopes(List<AiMetadataCopilotModels.SecurityFindingRow> findings) {
+        if (findings == null) {
+            return;
+        }
+
+        for (AiMetadataCopilotModels.SecurityFindingRow finding : findings) {
+            if (finding == null || String.isBlank(finding.fieldApiName) || !finding.fieldApiName.contains('.')) {
+                continue;
+            }
+
+            finding.objectApiName = String.isBlank(finding.objectApiName)
+                ? finding.fieldApiName.substringBefore('.')
+                : finding.objectApiName;
+            finding.fieldApiName = finding.fieldApiName.substringAfter('.');
+        }
+    }
+
     private void persistAudit(
         String runKey,
         AiMetadataCopilotModels.SecurityAuditRequest request,
         List<AiMetadataCopilotModels.SecurityFindingRow> findings
     ) {
+        if (!MetadataRetentionService.optionalWritesAllowed()) {
+            return;
+        }
+
         if (Schema.sObjectType.Security_Audit_Run__c.isCreateable()) {
             Security_Audit_Run__c runRecord = new Security_Audit_Run__c();
             runRecord.Run_Key__c = runKey;

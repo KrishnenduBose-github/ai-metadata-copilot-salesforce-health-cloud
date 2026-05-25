@@ -45,21 +45,61 @@ public with sharing class SensitiveDataClassificationService {
         List<String> baselineObjects = new List<String>{
             'Account', 'Contact', 'Case', 'CarePlan__c', 'Member__c', 'Claim__c'
         };
+        if (String.isBlank(objectApiName) && !String.isBlank(fieldApiName)) {
+            for (Metadata_Item__c fieldItem : findIndexedFields(fieldApiName)) {
+                fallbackTargets.add(buildTarget(
+                    fieldItem.Object_API_Name__c,
+                    fieldItem.Field_API_Name__c,
+                    inferSensitivityLevel(fieldItem.Object_API_Name__c, fieldItem.Field_API_Name__c),
+                    'Fallback Health Cloud baseline rule'
+                ));
+            }
+            return fallbackTargets;
+        }
 
         List<String> objectsToCheck = String.isBlank(objectApiName)
             ? baselineObjects
             : new List<String>{ objectApiName };
 
         for (String baselineObject : objectsToCheck) {
-            SensitiveTarget target = new SensitiveTarget();
-            target.objectApiName = baselineObject;
-            target.fieldApiName = String.isBlank(fieldApiName) ? null : fieldApiName;
-            target.sensitivityLevel = inferSensitivityLevel(baselineObject, fieldApiName);
-            target.complianceNote = 'Fallback Health Cloud baseline rule';
-            fallbackTargets.add(target);
+            fallbackTargets.add(buildTarget(
+                baselineObject,
+                String.isBlank(fieldApiName) ? null : fieldApiName,
+                inferSensitivityLevel(baselineObject, fieldApiName),
+                'Fallback Health Cloud baseline rule'
+            ));
         }
 
         return fallbackTargets;
+    }
+
+    private static List<Metadata_Item__c> findIndexedFields(String fieldApiName) {
+        if (String.isBlank(fieldApiName) || !Schema.sObjectType.Metadata_Item__c.isAccessible()) {
+            return new List<Metadata_Item__c>();
+        }
+
+        return [
+            SELECT Object_API_Name__c, Field_API_Name__c
+            FROM Metadata_Item__c
+            WHERE Metadata_Type__c = 'CustomField'
+              AND Field_API_Name__c = :fieldApiName
+              AND Object_API_Name__c != null
+            LIMIT 100
+        ];
+    }
+
+    private static SensitiveTarget buildTarget(
+        String objectApiName,
+        String fieldApiName,
+        String sensitivityLevel,
+        String complianceNote
+    ) {
+        SensitiveTarget target = new SensitiveTarget();
+        target.objectApiName = objectApiName;
+        target.fieldApiName = fieldApiName;
+        target.sensitivityLevel = sensitivityLevel;
+        target.complianceNote = complianceNote;
+        return target;
     }
 
     private static String inferSensitivityLevel(String objectApiName, String fieldApiName) {

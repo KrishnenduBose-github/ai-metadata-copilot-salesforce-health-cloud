@@ -18,9 +18,14 @@
                 <div class="message error-message">{errorMessage}</div>
             </template>
 
+            <template if:true={warningMessage}>
+                <div class="message warning-message">{warningMessage}</div>
+            </template>
+
             <div class="search-form">
                 <lightning-combobox
                     name="queryType"
+                    data-field="queryType"
                     label="Search Type"
                     value={queryType}
                     options={queryTypeOptions}
@@ -29,6 +34,7 @@
 
                 <lightning-input
                     name="queryText"
+                    data-field="queryText"
                     label="API Name"
                     value={queryText}
                     onchange={handleQueryTextChange}

@@ -8,12 +8,21 @@ public with sharing class MetadataIndexerService {
         @AuraEnabled public Integer totalItems;
         @AuraEnabled public Integer successCount;
         @AuraEnabled public Integer errorCount;
+        @AuraEnabled public Integer skippedCount;
+        @AuraEnabled public Boolean storageRecoveryApplied;
+        @AuraEnabled public String warningSummary;
+        public Set<String> successfulMetadataKeys;
+        public Set<String> failedMetadataKeys;
         @AuraEnabled public List<String> errors;
 
         public IndexingResult() {
             this.totalItems = 0;
             this.successCount = 0;
             this.errorCount = 0;
+            this.skippedCount = 0;
+            this.storageRecoveryApplied = false;
+            this.successfulMetadataKeys = new Set<String>();
+            this.failedMetadataKeys = new Set<String>();
             this.errors = new List<String>();
         }
     }
@@ -87,10 +96,12 @@ public with sharing class MetadataIndexerService {
 
             if (upsertResult.isSuccess()) {
                 result.successCount++;
+                result.successfulMetadataKeys.add(recordsToUpsert[index].Metadata_Key__c);
                 continue;
             }
 
             result.errorCount++;
+            result.failedMetadataKeys.add(recordsToUpsert[index].Metadata_Key__c);
             result.errors.add(
                 'Failed to index '
                 + recordsToUpsert[index].Metadata_Key__c
@@ -101,11 +112,15 @@ public with sharing class MetadataIndexerService {
 
         if (MetadataStorageUtility.containsStorageLimitError(result.errors)) {
             result.errors.clear();
+            result.storageRecoveryApplied = true;
+            result.warningSummary =
+                'Metadata indexing was partially skipped because the org is low on storage. Some items could not be indexed.';
             result.errors.add(
-                'Metadata indexing was partially skipped because the org is low on storage. Some items could not be indexed.'
+                result.warningSummary
             );
-            result.errorCount = 1;
         }
+
+        result.skippedCount = Math.max(0, result.totalItems - result.successCount);
 
         return result;
     }

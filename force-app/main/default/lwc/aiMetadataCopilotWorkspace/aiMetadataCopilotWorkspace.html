@@ -17,8 +17,11 @@
         </template>
 
         <template if:true={refreshResult}>
-            <div class="alert alert-success">
-                Metadata refreshed: {refreshResult.indexedItems} items, {refreshResult.usageRelationships} relationships
+            <div class={refreshStatusClass}>
+                <strong>{refreshSummary}</strong>
+                <template if:true={refreshWarning}>
+                    <span class="alert-detail">{refreshWarning}</span>
+                </template>
             </div>
         </template>
 
@@ -27,28 +30,26 @@
                 <div class="panel">
                     <p class="panel-desc">Find where fields, objects, flows, or Apex are used across metadata.</p>
 
-                    <div class="mode-toggle">
-                        <lightning-button-icon-stateful
-                            icon-name="utility:switch"
-                            selected={isSearchSimple}
-                            alternative-text="Toggle mode"
-                            variant="border"
-                            value={searchMode}
-                            onclick={handleSearchModeChange}
-                        ></lightning-button-icon-stateful>
-                        <span class="mode-label">{searchModeLabel}</span>
-                    </div>
+                    <lightning-radio-group
+                        label="Search Mode"
+                        options={modeOptions}
+                        value={searchMode}
+                        type="button"
+                        onchange={handleSearchModeChange}
+                    ></lightning-radio-group>
 
                     <template if:true={isSearchSimple}>
                         <div class="input-row">
                             <lightning-combobox
                                 label="Query Type"
+                                data-field="searchQueryType"
                                 value={searchQueryType}
                                 options={queryTypeOptions}
                                 onchange={handleSearchQueryTypeChange}
                             ></lightning-combobox>
                             <lightning-input
                                 label="API Name"
+                                data-field="searchQueryText"
                                 value={searchQueryText}
                                 onchange={handleSearchQueryTextChange}
                                 placeholder="Account.CustomerPriority__c"
@@ -61,6 +62,7 @@
                         <div class="input-row">
                             <lightning-textarea
                                 label="Ask a question"
+                                data-field="searchPrompt"
                                 value={searchPrompt}
                                 onchange={handleSearchPromptChange}
                                 placeholder="Where is Patient_Status__c used?"
@@ -71,7 +73,7 @@
 
                     <template if:true={searchResponse}>
                         <div class="card">
-                            <span class="badge {severityClass(searchResponse)}">{searchResponse.severity || 'Low'}</span>
+                            <span class="badge">{searchResponse.severity}</span>
                             <span class="card-summary">{searchResponse.summary}</span>
                         </div>
                     </template>
@@ -92,28 +94,26 @@
                 <div class="panel">
                     <p class="panel-desc">Understand what breaks before changing metadata.</p>
 
-                    <div class="mode-toggle">
-                        <lightning-button-icon-stateful
-                            icon-name="utility:switch"
-                            selected={isImpactSimple}
-                            alternative-text="Toggle mode"
-                            variant="border"
-                            value={impactMode}
-                            onclick={handleImpactModeChange}
-                        ></lightning-button-icon-stateful>
-                        <span class="mode-label">{impactModeLabel}</span>
-                    </div>
+                    <lightning-radio-group
+                        label="Impact Mode"
+                        options={modeOptions}
+                        value={impactMode}
+                        type="button"
+                        onchange={handleImpactModeChange}
+                    ></lightning-radio-group>
 
                     <template if:true={isImpactSimple}>
                         <div class="input-row">
                             <lightning-combobox
                                 label="Query Type"
+                                data-field="impactQueryType"
                                 value={impactQueryType}
                                 options={queryTypeOptions}
                                 onchange={handleImpactQueryTypeChange}
                             ></lightning-combobox>
                             <lightning-input
                                 label="API Name"
+                                data-field="impactQueryText"
                                 value={impactQueryText}
                                 onchange={handleImpactQueryTextChange}
                                 placeholder="Account.CustomerPriority__c"
@@ -126,6 +126,7 @@
                         <div class="input-row">
                             <lightning-textarea
                                 label="Ask a question"
+                                data-field="impactPrompt"
                                 value={impactPrompt}
                                 onchange={handleImpactPromptChange}
                                 placeholder="If I rename Contact.Email what breaks?"
@@ -136,7 +137,7 @@
 
                     <template if:true={impactResponse}>
                         <div class="card">
-                            <span class="badge {severityClass(impactResponse)}">{impactResponse.severity || 'Low'}</span>
+                            <span class="badge">{impactResponse.severity}</span>
                             <span class="card-summary">{impactResponse.summary}</span>
                         </div>
                     </template>
@@ -160,6 +161,7 @@
                     <div class="input-row">
                         <lightning-textarea
                             label="Field, object, or question"
+                            data-field="securityPrompt"
                             value={securityPrompt}
                             onchange={handleSecurityPromptChange}
                             placeholder="Patient_Status__c  /  Who can access Contact.Email?  /  Account.CustomerPriority__c"
@@ -171,7 +173,7 @@
 
                     <template if:true={securityResponse}>
                         <div class="card">
-                            <span class="badge {severityClass(securityResponse)}">{securityResponse.severity || 'Low'}</span>
+                            <span class="badge">{securityResponse.severity}</span>
                             <span class="card-summary">{securityResponse.summary}</span>
                         </div>
                     </template>
@@ -191,13 +193,13 @@
             <lightning-tab label="Deploy" value="deployment">
                 <div class="panel panel-cols">
                     <p class="panel-desc full">Compare environments before deployment.</p>
-                    <lightning-input label="Source" value={sourceEnvironment} onchange={handleSourceEnvChange}></lightning-input>
-                    <lightning-input label="Target" value={targetEnvironment} onchange={handleTargetEnvChange}></lightning-input>
+                    <lightning-input label="Source" data-field="sourceEnvironment" value={sourceEnvironment} onchange={handleSourceEnvChange}></lightning-input>
+                    <lightning-input label="Target" data-field="targetEnvironment" value={targetEnvironment} onchange={handleTargetEnvChange}></lightning-input>
                     <lightning-button label="Compare" variant="brand" onclick={handleDeploymentCompare} disabled={isLoading} class="btn-action full"></lightning-button>
 
                     <template if:true={deploymentResponse}>
                         <div class="card full">
-                            <span class="badge {severityClass(deploymentResponse)}">{deploymentResponse.severity}</span>
+                            <span class="badge">{deploymentResponse.severity}</span>
                             <span>Readiness: <strong>{deploymentResponse.readinessScore}</strong></span>
                             <span class="card-summary">{deploymentResponse.summary}</span>
                         </div>
@@ -216,7 +218,7 @@
 
                     <template if:true={optimizationResponse}>
                         <div class="card">
-                            <span class="badge {severityClass(optimizationResponse)}">{optimizationResponse.severity}</span>
+                            <span class="badge">{optimizationResponse.severity}</span>
                             <span class="card-summary">{optimizationResponse.summary}</span>
                         </div>
                     </template>

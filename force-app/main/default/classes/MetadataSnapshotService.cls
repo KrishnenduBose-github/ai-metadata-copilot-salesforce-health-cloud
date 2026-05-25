@@ -2,10 +2,12 @@ public with sharing class MetadataSnapshotService {
     public class SnapshotResult {
         @AuraEnabled public String snapshotKey;
         @AuraEnabled public Integer componentCount;
+        @AuraEnabled public Boolean saved;
         @AuraEnabled public List<String> messages;
 
         public SnapshotResult() {
             this.messages = new List<String>();
+            this.saved = false;
         }
     }
 
@@ -35,9 +37,18 @@ public with sharing class MetadataSnapshotService {
             snapshotRecord.Completed_On__c = System.now();
             snapshotRecord.Item_Count__c = result.componentCount;
             snapshotRecord.Summary__c = buildSnapshotSummary(snapshotType, result.componentCount);
-            Database.upsert(snapshotRecord, Metadata_Snapshot__c.Fields.Snapshot_Key__c, false);
+            Database.UpsertResult snapshotSaveResult = Database.upsert(
+                snapshotRecord,
+                Metadata_Snapshot__c.Fields.Snapshot_Key__c,
+                false
+            );
+            if (!snapshotSaveResult.isSuccess()) {
+                result.messages.add('Snapshot persistence was skipped: ' + joinErrors(snapshotSaveResult.getErrors()));
+                return result;
+            }
 
             saveComponentVersions(result.snapshotKey, items);
+            result.saved = true;
         } catch (DmlException dmlError) {
             if (!MetadataStorageUtility.isStorageLimitException(dmlError)) {
                 throw dmlError;
@@ -144,6 +155,14 @@ public with sharing class MetadataSnapshotService {
 
     private static String buildSnapshotSummary(String snapshotType, Integer itemCount) {
         return safeText(snapshotType) + ' snapshot stored ' + String.valueOf(itemCount) + ' metadata item(s).';
+    }
+
+    private static String joinErrors(Database.Error[] errors) {
+        List<String> messages = new List<String>();
+        for (Database.Error errorItem : errors) {
+            messages.add(errorItem.getMessage());
+        }
+        return String.join(messages, '; ');
     }
 
     private static String safeText(String inputValue) {

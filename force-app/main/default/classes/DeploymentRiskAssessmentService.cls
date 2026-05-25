@@ -7,7 +7,7 @@ public with sharing class DeploymentRiskAssessmentService {
         MetadataSnapshotService snapshotService = new MetadataSnapshotService();
         Metadata_Snapshot__c latestSnapshot = snapshotService.getLatestSnapshot('EnvironmentCompare');
 
-        if (latestSnapshot == null) {
+        if (latestSnapshot == null && MetadataRetentionService.optionalWritesAllowed()) {
             EnvironmentSnapshotService environmentSnapshotService = new EnvironmentSnapshotService();
             environmentSnapshotService.captureCurrentEnvironment(request.sourceEnvironment);
             latestSnapshot = snapshotService.getLatestSnapshot('EnvironmentCompare');
@@ -45,8 +45,12 @@ public with sharing class DeploymentRiskAssessmentService {
         response.findings = findings;
         response.readinessScore = readinessScore;
         response.severity = formatter.severityFromScore(100 - readinessScore);
-        response.summary = 'Deployment assistant found ' + String.valueOf(findings.size()) + ' comparison finding(s).';
-        response.explanation = findings.isEmpty()
+        response.summary = snapshots.size() < 2
+            ? 'Deployment assistant needs two valid snapshots before it can compare environments.'
+            : 'Deployment assistant found ' + String.valueOf(findings.size()) + ' comparison finding(s).';
+        response.explanation = snapshots.size() < 2
+            ? 'Snapshot creation may be unavailable while storage is constrained. Run Refresh Metadata after storage recovery, then compare again.'
+            : findings.isEmpty()
             ? 'No metadata deltas were detected between the most recent environment snapshots.'
             : 'Findings are grounded in metadata snapshot checksums and presence/absence differences.';
         response.rollbackChecklist = new RollbackChecklistService().buildChecklist(findings);
@@ -60,6 +64,10 @@ public with sharing class DeploymentRiskAssessmentService {
         List<AiMetadataCopilotModels.DeploymentFindingRow> findings,
         Decimal readinessScore
     ) {
+        if (!MetadataRetentionService.optionalWritesAllowed()) {
+            return;
+        }
+
         if (Schema.sObjectType.Deployment_Assessment__c.isCreateable()) {
             Deployment_Assessment__c assessment = new Deployment_Assessment__c();
             assessment.Assessment_Key__c = assessmentKey;

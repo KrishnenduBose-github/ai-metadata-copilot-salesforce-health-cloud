@@ -69,10 +69,14 @@ public with sharing class MetadataExtractionService {
         MetadataToolingApiClient.ToolingQueryResult result = toolingClient.runQuery(queryText);
 
         List<ExtractedMetadataItem> items = new List<ExtractedMetadataItem>();
+        Map<String, String> objectNameByEntityId = buildObjectNameByEntityId(result.records);
 
         for (Object rawRecord : safeRecords(result.records)) {
             Map<String, Object> summaryRecord = (Map<String, Object>) rawRecord;
-            items.add(mapCustomFieldSummaryRecord(summaryRecord));
+            ExtractedMetadataItem item = mapCustomFieldSummaryRecord(summaryRecord, objectNameByEntityId);
+            if (item != null) {
+                items.add(item);
+            }
         }
 
         return items;
@@ -121,9 +125,21 @@ public with sharing class MetadataExtractionService {
         return item;
     }
 
-    private ExtractedMetadataItem mapCustomFieldSummaryRecord(Map<String, Object> summaryRecord) {
-        String objectApiName = stringValue(summaryRecord.get('TableEnumOrId'));
+    private ExtractedMetadataItem mapCustomFieldSummaryRecord(
+        Map<String, Object> summaryRecord,
+        Map<String, String> objectNameByEntityId
+    ) {
+        String rawObjectReference = stringValue(summaryRecord.get('TableEnumOrId'));
+        String objectApiName = objectNameByEntityId.containsKey(rawObjectReference)
+            ? objectNameByEntityId.get(rawObjectReference)
+            : rawObjectReference;
+        if (looksLikeEntityId(objectApiName)) {
+            objectApiName = null;
+        }
         String fieldApiName = normalizeCustomFieldName(stringValue(summaryRecord.get('DeveloperName')));
+        if (String.isBlank(objectApiName) || String.isBlank(fieldApiName)) {
+            return null;
+        }
         String fullName = buildQualifiedFieldName(objectApiName, fieldApiName);
 
         ExtractedMetadataItem item = new ExtractedMetadataItem();
@@ -144,6 +160,59 @@ public with sharing class MetadataExtractionService {
         item.metadataKey = 'CustomField:' + item.apiName;
 
         return item;
+    }
+
+    private Map<String, String> buildObjectNameByEntityId(List<Object> customFieldRecords) {
+        Set<String> entityIds = new Set<String>();
+        for (Object rawRecord : safeRecords(customFieldRecords)) {
+            Map<String, Object> record = (Map<String, Object>) rawRecord;
+            String tableReference = stringValue(record.get('TableEnumOrId'));
+            if (looksLikeEntityId(tableReference)) {
+                entityIds.add(tableReference);
+            }
+        }
+
+        if (entityIds.isEmpty()) {
+            return new Map<String, String>();
+        }
+
+        List<String> quotedIds = new List<String>();
+        for (String entityId : entityIds) {
+            quotedIds.add('\'' + String.escapeSingleQuotes(entityId) + '\'');
+        }
+
+        Map<String, String> objectNameByEntityId = new Map<String, String>();
+        try {
+            MetadataToolingApiClient.ToolingQueryResult result = toolingClient.runQuery(
+                'SELECT Id, DeveloperName, NamespacePrefix FROM CustomObject WHERE Id IN ('
+                + String.join(quotedIds, ',')
+                + ')'
+            );
+
+            for (Object rawRecord : safeRecords(result.records)) {
+                Map<String, Object> record = (Map<String, Object>) rawRecord;
+                String developerName = stringValue(record.get('DeveloperName'));
+                String namespacePrefix = stringValue(record.get('NamespacePrefix'));
+                String qualifiedName = String.isBlank(namespacePrefix)
+                    ? developerName + '__c'
+                    : namespacePrefix + '__' + developerName + '__c';
+                objectNameByEntityId.put(
+                    stringValue(record.get('Id')),
+                    qualifiedName
+                );
+            }
+        } catch (Exception ex) {
+            MetadataLogger.warn(
+                'MetadataExtractionService',
+                'Custom field object-name resolution skipped: ' + ex.getMessage()
+            );
+        }
+
+        return objectNameByEntityId;
+    }
+
+    private static Boolean looksLikeEntityId(String value) {
+        return !String.isBlank(value) && value.startsWith('01I');
     }
 
     private static String buildQualifiedFieldName(String objectApiName, String fieldApiName) {
@@ -167,7 +236,7 @@ public with sharing class MetadataExtractionService {
             return developerName;
         }
 
-        return developerName;
+        return developerName + '__c';
     }
 
     private static List<Object> safeRecords(List<Object> records) {

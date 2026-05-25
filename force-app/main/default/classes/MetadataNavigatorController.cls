@@ -4,12 +4,16 @@ public with sharing class MetadataNavigatorController {
      */
 
     public class RefreshResponse {
+        @AuraEnabled public String status;
+        @AuraEnabled public String warningSummary;
         @AuraEnabled public Integer indexedItems;
         @AuraEnabled public Integer indexedSuccessCount;
         @AuraEnabled public Integer indexedErrorCount;
         @AuraEnabled public Integer usageRelationships;
         @AuraEnabled public Integer usageSuccessCount;
         @AuraEnabled public Integer usageErrorCount;
+        @AuraEnabled public Boolean retentionCleanupApplied;
+        @AuraEnabled public Boolean snapshotSaved;
         @AuraEnabled public List<String> messages;
 
         public RefreshResponse() {
@@ -29,26 +33,21 @@ public with sharing class MetadataNavigatorController {
 
     @AuraEnabled
     public static RefreshResponse refreshMetadataIndex() {
+        MetadataExtractionOrchestrator.RefreshRunResult refreshResult =
+            new MetadataExtractionOrchestrator().refreshMetadata('Current Sandbox');
+
         RefreshResponse response = new RefreshResponse();
-
-        MetadataExtractionService extractionService = new MetadataExtractionService();
-        List<MetadataExtractionService.ExtractedMetadataItem> extractedItems =
-            extractionService.extractAllSupportedMetadata();
-
-        MetadataIndexerService.IndexingResult indexingResult =
-            new MetadataIndexerService().indexMetadataItems(extractedItems);
-        MetadataUsageAnalyzerService.AnalysisResult analysisResult =
-            new MetadataUsageAnalyzerService().analyzeAndStoreUsage(extractedItems);
-
-        response.indexedItems = indexingResult.totalItems;
-        response.indexedSuccessCount = indexingResult.successCount;
-        response.indexedErrorCount = indexingResult.errorCount;
-        response.usageRelationships = analysisResult.totalRelationships;
-        response.usageSuccessCount = analysisResult.successCount;
-        response.usageErrorCount = analysisResult.errorCount;
-        response.messages.addAll(indexingResult.errors);
-        response.messages.addAll(analysisResult.errors);
-
+        response.status = refreshResult.status;
+        response.warningSummary = refreshResult.warningSummary;
+        response.indexedItems = refreshResult.indexedItems + refreshResult.indexedSkippedCount;
+        response.indexedSuccessCount = refreshResult.indexedItems;
+        response.indexedErrorCount = refreshResult.indexedSkippedCount;
+        response.usageRelationships = refreshResult.usageRelationships + refreshResult.usageSkippedCount;
+        response.usageSuccessCount = refreshResult.usageRelationships;
+        response.usageErrorCount = refreshResult.usageSkippedCount;
+        response.retentionCleanupApplied = refreshResult.retentionCleanupApplied;
+        response.snapshotSaved = refreshResult.snapshotSaved;
+        response.messages.addAll(refreshResult.messages);
         return response;
     }
 

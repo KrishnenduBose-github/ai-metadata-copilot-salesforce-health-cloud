@@ -11,6 +11,7 @@ export default class MetadataNavigator extends LightningElement {
     rows = [];
     errorMessage = '';
     refreshMessage = '';
+    warningMessage = '';
     isLoading = false;
 
     columns = [
@@ -43,22 +44,36 @@ export default class MetadataNavigator extends LightningElement {
         this.queryText = event.target.value;
     }
 
+    readField(fieldName, fallbackValue) {
+        const input = this.template.querySelector(`[data-field="${fieldName}"]`);
+        if (input && input.value !== undefined) return input.value;
+        return fallbackValue || '';
+    }
+
+    syncCurrentInputs() {
+        this.queryText = this.readField('queryText', this.queryText);
+        this.queryType = this.readField('queryType', this.queryType);
+    }
+
     async handleRefresh() {
         this.isLoading = true;
         this.errorMessage = '';
         this.refreshMessage = '';
+        this.warningMessage = '';
 
         try {
             const result = await refreshMetadataIndex();
             this.refreshMessage =
-                'Index refresh completed. Indexed '
+                `${result.status || 'Success'}: indexed `
                 + result.indexedSuccessCount
-                + ' item(s) and stored '
+                + ' item(s), stored '
                 + result.usageSuccessCount
                 + ' usage relationship(s).';
 
-            if (result.messages && result.messages.length > 0) {
-                this.errorMessage = result.messages.join(' | ');
+            if (result.warningSummary) {
+                this.warningMessage = result.warningSummary;
+            } else if (result.messages && result.messages.length > 0) {
+                this.warningMessage = result.messages.join(' ');
             }
         } catch (error) {
             this.errorMessage = this.reduceError(error);
@@ -71,10 +86,13 @@ export default class MetadataNavigator extends LightningElement {
         this.isLoading = true;
         this.errorMessage = '';
         this.refreshMessage = '';
+        this.warningMessage = '';
 
         try {
+            this.syncCurrentInputs();
+            const queryText = this.queryText ? this.queryText.trim() : '';
             const result = await searchMetadata({
-                queryText: this.queryText,
+                queryText,
                 queryType: this.queryType
             });
 

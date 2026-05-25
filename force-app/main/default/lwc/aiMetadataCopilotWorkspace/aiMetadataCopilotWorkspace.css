@@ -1,17 +1,18 @@
 .app-root {
-    background: linear-gradient(160deg, #f0f7f4 0%, #fafcfb 40%, #fff 100%);
-    border-radius: 0.75rem;
+    background: #f5f7fb;
+    border: 1px solid #d9e2ec;
+    border-radius: 0.5rem;
     overflow: hidden;
     font-family: 'Salesforce Sans', system-ui, -apple-system, sans-serif;
 }
 
 .header {
     align-items: center;
-    background: linear-gradient(135deg, #006140, #087e8b);
+    background: linear-gradient(135deg, #16324f, #087e8b 58%, #0f766e);
     display: flex;
     gap: 1rem;
     justify-content: space-between;
-    padding: 0.75rem 1.25rem;
+    padding: 1rem 1.25rem;
 }
 
 .header-brand {
@@ -23,21 +24,30 @@
 
 .header-logo {
     color: #fff;
-    font-size: 1rem;
+    font-size: 1.15rem;
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
 }
 
 .header-health {
-    color: rgba(255,255,255,0.82);
-    font-size: 0.65rem;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 0.25rem;
+    color: rgba(255,255,255,0.92);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.5rem;
 }
 
 .alert {
-    border-radius: 0.4rem;
+    border-radius: 0.35rem;
     font-size: 0.78rem;
     margin: 0.5rem 1rem;
     padding: 0.6rem 0.9rem;
+}
+
+.alert-detail {
+    display: block;
+    margin-top: 0.25rem;
 }
 
 .alert-error {
@@ -60,8 +70,8 @@
 
 .panel {
     display: grid;
-    gap: 0.75rem;
-    padding: 1rem;
+    gap: 0.9rem;
+    padding: 1.1rem;
 }
 
 .panel-cols {
@@ -116,9 +126,10 @@
 
 .card {
     align-items: center;
-    background: #fff;
-    border: 1px solid #dde5e9;
-    border-radius: 0.6rem;
+    background: linear-gradient(180deg, #ffffff, #f9fbfd);
+    border: 1px solid #d7e0ea;
+    border-radius: 0.45rem;
+    box-shadow: 0 1px 2px rgba(22, 50, 79, 0.08);
     display: flex;
     flex-wrap: wrap;
     gap: 0.6rem;
@@ -132,7 +143,10 @@
 }
 
 .badge {
-    border-radius: 0.3rem;
+    background: #e8f3ff;
+    border: 1px solid #b8d7f7;
+    border-radius: 0.25rem;
+    color: #16324f;
     font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -213,4 +227,24 @@
     border-radius: 0.5rem;
     font-size: 0.8rem;
     padding: 0.75rem 1rem;
+}
+
+@media (max-width: 760px) {
+    .header,
+    .header-brand,
+    .admin-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .panel-cols,
+    .input-row,
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .full,
+    .panel-desc.full {
+        grid-column: auto;
+    }
 }

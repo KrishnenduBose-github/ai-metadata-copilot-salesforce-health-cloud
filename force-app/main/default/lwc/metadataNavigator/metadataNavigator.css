@@ -1,4 +1,5 @@
 .wrapper {
+    background: #f7f9fc;
     padding: 1rem;
 }
 
@@ -9,13 +10,16 @@
 .search-form {
     display: grid;
     gap: 0.75rem;
+    grid-template-columns: 1fr 2fr auto;
+    align-items: end;
     margin-bottom: 1rem;
 }
 
 .summary-box {
-    background: #f3f9f7;
-    border: 1px solid #cfe9dc;
-    border-radius: 0.5rem;
+    background: #ffffff;
+    border: 1px solid #cfe0ee;
+    border-left: 4px solid #087e8b;
+    border-radius: 0.4rem;
     margin-bottom: 1rem;
     padding: 1rem;
 }
@@ -31,7 +35,19 @@
     border: 1px solid #cce5d1;
 }
 
+.warning-message {
+    background: #fff8e6;
+    border: 1px solid #f0d48a;
+    color: #6d5200;
+}
+
 .error-message {
     background: #fff1f1;
     border: 1px solid #f0c9c9;
+}
+
+@media (max-width: 760px) {
+    .search-form {
+        grid-template-columns: 1fr;
+    }
 }

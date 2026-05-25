@@ -135,8 +135,14 @@ public with sharing class AiMetadataCopilotModels {
 
     public class RefreshResponse {
         @AuraEnabled public String snapshotKey;
+        @AuraEnabled public String status;
+        @AuraEnabled public String warningSummary;
         @AuraEnabled public Integer indexedItems;
+        @AuraEnabled public Integer indexedSkippedCount;
         @AuraEnabled public Integer usageRelationships;
+        @AuraEnabled public Integer usageSkippedCount;
+        @AuraEnabled public Boolean snapshotSaved;
+        @AuraEnabled public Boolean retentionCleanupApplied;
         @AuraEnabled public List<String> messages;
     }
 }

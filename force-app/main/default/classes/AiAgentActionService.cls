@@ -84,27 +84,7 @@ public with sharing class AiAgentActionService {
         );
 
         MetadataLogger.info('AiAgentActionService', 'searchMetadata completed: ' + rows.size() + ' rows for ' + request.queryText);
-        persistSearchHistory(request.userPrompt, request.queryText, request.queryType);
         return response;
-    }
-
-    private void persistSearchHistory(String userPrompt, String queryText, String queryType) {
-        if (!Schema.sObjectType.Documentation_Request__c.isCreateable()) {
-            return;
-        }
-
-        try {
-            Documentation_Request__c history = new Documentation_Request__c();
-            history.Request_Key__c = 'SearchHistory:' + String.valueOf(System.now().getTime());
-            history.Request_Type__c = 'Search:' + queryType;
-            history.Metadata_Key__c = queryText;
-            history.Technical_Summary__c = userPrompt;
-            history.Business_Summary__c = queryType + ' search for ' + queryText;
-            history.Status__c = 'Completed';
-            Database.insert(history, false);
-        } catch (Exception ex) {
-            MetadataLogger.warn('AiAgentActionService', 'Failed to persist search history: ' + ex.getMessage());
-        }
     }
 
     private static String buildSearchSummaryMessage(
@@ -250,7 +230,11 @@ public with sharing class AiAgentActionService {
     private void persistOptimizationFindings(
         List<AiMetadataCopilotModels.OptimizationFindingRow> findings
     ) {
-        if (findings.isEmpty() || !Schema.sObjectType.Optimization_Finding__c.isCreateable()) {
+        if (
+            findings.isEmpty()
+            || !MetadataRetentionService.optionalWritesAllowed()
+            || !Schema.sObjectType.Optimization_Finding__c.isCreateable()
+        ) {
             return;
         }
 

@@ -8,12 +8,17 @@ public with sharing class MetadataUsageAnalyzerService {
         @AuraEnabled public Integer totalRelationships;
         @AuraEnabled public Integer successCount;
         @AuraEnabled public Integer errorCount;
+        @AuraEnabled public Integer skippedSourceCount;
+        @AuraEnabled public Map<String, Integer> skippedByType;
+        @AuraEnabled public String warningSummary;
         @AuraEnabled public List<String> errors;
 
         public AnalysisResult() {
             this.totalRelationships = 0;
             this.successCount = 0;
             this.errorCount = 0;
+            this.skippedSourceCount = 0;
+            this.skippedByType = new Map<String, Integer>();
             this.errors = new List<String>();
         }
     }
@@ -38,6 +43,13 @@ public with sharing class MetadataUsageAnalyzerService {
     public AnalysisResult analyzeAndStoreUsage(
         List<MetadataExtractionService.ExtractedMetadataItem> extractedItems
     ) {
+        return analyzeAndStoreUsage(extractedItems, null);
+    }
+
+    public AnalysisResult analyzeAndStoreUsage(
+        List<MetadataExtractionService.ExtractedMetadataItem> extractedItems,
+        Set<String> successfulMetadataKeys
+    ) {
         AnalysisResult result = new AnalysisResult();
         List<Metadata_Usage__c> usagesToUpsert = new List<Metadata_Usage__c>();
 
@@ -50,12 +62,14 @@ public with sharing class MetadataUsageAnalyzerService {
                 continue;
             }
 
+            if (successfulMetadataKeys != null && !successfulMetadataKeys.contains(sourceItem.metadataKey)) {
+                trackSkippedSource(result, sourceItem.metadataType);
+                continue;
+            }
+
             Metadata_Item__c sourceRecord = metadataByKey.get(sourceItem.metadataKey);
             if (sourceRecord == null) {
-                result.errorCount++;
-                result.errors.add(
-                    'Source metadata item was not indexed yet: ' + sourceItem.metadataKey
-                );
+                trackSkippedSource(result, sourceItem.metadataType);
                 continue;
             }
 
@@ -75,6 +89,7 @@ public with sharing class MetadataUsageAnalyzerService {
         result.totalRelationships = usagesToUpsert.size();
 
         if (usagesToUpsert.isEmpty()) {
+            addSkippedSummary(result);
             return result;
         }
 
@@ -106,13 +121,45 @@ public with sharing class MetadataUsageAnalyzerService {
 
         if (MetadataStorageUtility.containsStorageLimitError(result.errors)) {
             result.errors.clear();
+            result.warningSummary =
+                'Usage persistence was partially skipped because the org is low on storage. Metadata refresh still completed.';
             result.errors.add(
-                'Usage persistence was skipped because the org is low on storage. Metadata indexing still continued.'
+                result.warningSummary
             );
-            result.errorCount = 1;
         }
 
+        addSkippedSummary(result);
+
         return result;
+    }
+
+    private static void trackSkippedSource(AnalysisResult result, String metadataType) {
+        result.skippedSourceCount++;
+        String key = String.isBlank(metadataType) ? 'Unknown' : metadataType;
+        Integer currentValue = result.skippedByType.containsKey(key) ? result.skippedByType.get(key) : 0;
+        result.skippedByType.put(key, currentValue + 1);
+    }
+
+    private static void addSkippedSummary(AnalysisResult result) {
+        if (result.skippedSourceCount == 0) {
+            return;
+        }
+
+        List<String> parts = new List<String>();
+        for (String metadataType : result.skippedByType.keySet()) {
+            parts.add(String.valueOf(result.skippedByType.get(metadataType)) + ' ' + metadataType);
+        }
+
+        String summary =
+            'Usage analysis skipped '
+            + String.valueOf(result.skippedSourceCount)
+            + ' source item(s) because indexing was partial: '
+            + String.join(parts, ', ')
+            + '.';
+        result.warningSummary = String.isBlank(result.warningSummary)
+            ? summary
+            : result.warningSummary + ' ' + summary;
+        result.errors.add(summary);
     }
 
     private static Map<String, Metadata_Item__c> loadMetadataItemsByKey() {

@@ -68,7 +68,7 @@ public with sharing class MetadataImpactAnalysisService {
             result.impactLevel,
             matchCount
         );
-        result.assessmentId = assessment.Id;
+        result.assessmentId = assessment == null ? null : assessment.Id;
         return result;
     }
 
@@ -80,6 +80,9 @@ public with sharing class MetadataImpactAnalysisService {
         Integer matchCount
     ) {
         Impact_Assessment__c assessment = findReusableAssessment(queryText, queryType);
+        if (assessment == null && !MetadataRetentionService.optionalWritesAllowed()) {
+            return null;
+        }
         if (assessment == null) {
             assessment = findOldestAssessmentForRecycle();
         }
