@@ -13,14 +13,28 @@ public with sharing class MetadataSearchService {
         @AuraEnabled public String contextSnippet;
     }
 
+    public class SearchFilterResult {
+        public List<SearchResultRow> rows = new List<SearchResultRow>();
+        public Map<String, Integer> sourceTypeCounts = new Map<String, Integer>();
+        public Map<String, Integer> usageTypeCounts = new Map<String, Integer>();
+    }
+
     public List<SearchResultRow> searchFieldUsage(String fieldApiName) {
+        return searchFieldUsageDetailed(fieldApiName, null, null).rows;
+    }
+
+    public SearchFilterResult searchFieldUsageDetailed(
+        String fieldApiName,
+        List<String> sourceMetadataTypes,
+        List<String> usageTypes
+    ) {
         String normalizedInput = normalizeInput(fieldApiName);
         if (String.isBlank(normalizedInput)) {
-            return new List<SearchResultRow>();
+            return new SearchFilterResult();
         }
 
         if (!Schema.sObjectType.Metadata_Usage__c.isAccessible()) {
-            return new List<SearchResultRow>();
+            return new SearchFilterResult();
         }
 
         String targetKey = 'CustomField:' + normalizedInput;
@@ -62,17 +76,25 @@ public with sharing class MetadataSearchService {
                 ORDER BY Source_Type__c, Source_Key__c
             ];
 
-        return mapUsageRows(usageRecords);
+        return filterRows(mapUsageRows(usageRecords), sourceMetadataTypes, usageTypes);
     }
 
     public List<SearchResultRow> searchObjectUsage(String objectApiName) {
+        return searchObjectUsageDetailed(objectApiName, null, null).rows;
+    }
+
+    public SearchFilterResult searchObjectUsageDetailed(
+        String objectApiName,
+        List<String> sourceMetadataTypes,
+        List<String> usageTypes
+    ) {
         String normalizedInput = normalizeInput(objectApiName);
         if (String.isBlank(normalizedInput)) {
-            return new List<SearchResultRow>();
+            return new SearchFilterResult();
         }
 
         if (!Schema.sObjectType.Metadata_Usage__c.isAccessible()) {
-            return new List<SearchResultRow>();
+            return new SearchFilterResult();
         }
 
         List<Metadata_Usage__c> usageRecords = [
@@ -91,7 +113,7 @@ public with sharing class MetadataSearchService {
             ORDER BY Source_Type__c, Source_Key__c
         ];
 
-        return mapUsageRows(usageRecords);
+        return filterRows(mapUsageRows(usageRecords), sourceMetadataTypes, usageTypes);
     }
 
     private static List<SearchResultRow> mapUsageRows(List<Metadata_Usage__c> usageRecords) {
@@ -112,6 +134,39 @@ public with sharing class MetadataSearchService {
         }
 
         return rows;
+    }
+
+    private static SearchFilterResult filterRows(
+        List<SearchResultRow> rows,
+        List<String> sourceMetadataTypes,
+        List<String> usageTypes
+    ) {
+        SearchFilterResult result = new SearchFilterResult();
+        Set<String> sourceFilters = normalizeFilters(sourceMetadataTypes);
+        Set<String> usageFilters = normalizeFilters(usageTypes);
+
+        for (SearchResultRow row : rows) {
+            increment(result.sourceTypeCounts, row.sourceMetadataType);
+            increment(result.usageTypeCounts, row.usageType);
+            if (!sourceFilters.isEmpty() && !sourceFilters.contains(row.sourceMetadataType)) continue;
+            if (!usageFilters.isEmpty() && !usageFilters.contains(row.usageType)) continue;
+            result.rows.add(row);
+        }
+        return result;
+    }
+
+    private static Set<String> normalizeFilters(List<String> values) {
+        Set<String> normalized = new Set<String>();
+        if (values == null) return normalized;
+        for (String value : values) {
+            if (!String.isBlank(value)) normalized.add(value.trim());
+        }
+        return normalized;
+    }
+
+    private static void increment(Map<String, Integer> counts, String key) {
+        if (String.isBlank(key)) return;
+        counts.put(key, counts.containsKey(key) ? counts.get(key) + 1 : 1);
     }
 
     private static String normalizeInput(String inputText) {

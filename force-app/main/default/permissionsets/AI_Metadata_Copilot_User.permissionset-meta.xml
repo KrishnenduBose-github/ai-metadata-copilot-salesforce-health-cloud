@@ -34,6 +34,10 @@
         <apexClass>DeploymentRiskAssessmentService</apexClass>
         <enabled>true</enabled>
     </classAccesses>
+    <classAccesses>
+        <apexClass>MetadataNaturalLanguageAction</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
     <objectPermissions>
         <allowRead>true</allowRead>
         <object>Documentation_Request__c</object>
@@ -51,10 +55,12 @@
         <object>Metadata_Usage__c</object>
     </objectPermissions>
     <objectPermissions>
+        <allowCreate>true</allowCreate>
         <allowRead>true</allowRead>
         <object>Metadata_Snapshot__c</object>
     </objectPermissions>
     <objectPermissions>
+        <allowCreate>true</allowCreate>
         <allowRead>true</allowRead>
         <object>Metadata_Component_Version__c</object>
     </objectPermissions>

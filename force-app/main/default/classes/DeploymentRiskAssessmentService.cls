@@ -4,30 +4,15 @@ public with sharing class DeploymentRiskAssessmentService {
     public AiMetadataCopilotModels.DeploymentCompareResponse assess(
         AiMetadataCopilotModels.DeploymentCompareRequest request
     ) {
-        MetadataSnapshotService snapshotService = new MetadataSnapshotService();
-        Metadata_Snapshot__c latestSnapshot = snapshotService.getLatestSnapshot('EnvironmentCompare');
-
-        if (latestSnapshot == null && MetadataRetentionService.optionalWritesAllowed()) {
-            EnvironmentSnapshotService environmentSnapshotService = new EnvironmentSnapshotService();
-            environmentSnapshotService.captureCurrentEnvironment(request.sourceEnvironment);
-            latestSnapshot = snapshotService.getLatestSnapshot('EnvironmentCompare');
-        }
-
-        List<Metadata_Snapshot__c> snapshots = [
-            SELECT Id, Snapshot_Key__c, Source_Org_Label__c, CreatedDate
-            FROM Metadata_Snapshot__c
-            WHERE Snapshot_Type__c = 'EnvironmentCompare'
-            ORDER BY CreatedDate DESC
-            LIMIT 2
-        ];
+        List<Metadata_Snapshot__c> snapshots = loadComparisonSnapshots(request);
 
         List<AiMetadataCopilotModels.DeploymentFindingRow> findings =
             new List<AiMetadataCopilotModels.DeploymentFindingRow>();
 
-        if (snapshots.size() >= 2) {
+        if (snapshots.size() == 2) {
             findings = new MetadataCompareService().compareSnapshots(
-                snapshots[1].Snapshot_Key__c,
-                snapshots[0].Snapshot_Key__c
+                snapshots[0].Snapshot_Key__c,
+                snapshots[1].Snapshot_Key__c
             );
         }
 
@@ -45,17 +30,78 @@ public with sharing class DeploymentRiskAssessmentService {
         response.findings = findings;
         response.readinessScore = readinessScore;
         response.severity = formatter.severityFromScore(100 - readinessScore);
+        response.sourceSnapshotKey = snapshots.size() == 2 ? snapshots[0].Snapshot_Key__c : request.sourceSnapshotKey;
+        response.targetSnapshotKey = snapshots.size() == 2 ? snapshots[1].Snapshot_Key__c : request.targetSnapshotKey;
+        response.addedCount = countFindings(findings, 'MissingInSource');
+        response.removedCount = countFindings(findings, 'MissingInTarget');
+        response.changedCount = countFindings(findings, 'ChangedMetadata');
+        response.comparisonReady = snapshots.size() == 2;
         response.summary = snapshots.size() < 2
-            ? 'Deployment assistant needs two valid snapshots before it can compare environments.'
+            ? 'Select a completed baseline and capture a current snapshot before comparing.'
             : 'Deployment assistant found ' + String.valueOf(findings.size()) + ' comparison finding(s).';
         response.explanation = snapshots.size() < 2
-            ? 'Snapshot creation may be unavailable while storage is constrained. Run Refresh Metadata after storage recovery, then compare again.'
+            ? 'The selected snapshots are missing, incomplete, or unavailable. Set a baseline or choose two completed snapshots.'
             : findings.isEmpty()
-            ? 'No metadata deltas were detected between the most recent environment snapshots.'
+            ? 'No metadata deltas were detected between the selected snapshots.'
             : 'Findings are grounded in metadata snapshot checksums and presence/absence differences.';
         response.rollbackChecklist = new RollbackChecklistService().buildChecklist(findings);
         response.testChecklist = new RegressionTestRecommendationService().buildChecklistFromFindings(findings);
         return response;
+    }
+
+    private static List<Metadata_Snapshot__c> loadComparisonSnapshots(
+        AiMetadataCopilotModels.DeploymentCompareRequest request
+    ) {
+        if (!String.isBlank(request.sourceSnapshotKey) && !String.isBlank(request.targetSnapshotKey)) {
+            Map<String, Metadata_Snapshot__c> snapshotsByKey = new Map<String, Metadata_Snapshot__c>();
+            for (Metadata_Snapshot__c snapshot : [
+                SELECT Id, Snapshot_Key__c, Source_Org_Label__c, CreatedDate
+                FROM Metadata_Snapshot__c
+                WHERE Snapshot_Type__c = 'EnvironmentCompare'
+                  AND Status__c = 'Completed'
+                  AND Snapshot_Key__c IN :new Set<String>{
+                      request.sourceSnapshotKey,
+                      request.targetSnapshotKey
+                  }
+            ]) {
+                snapshotsByKey.put(snapshot.Snapshot_Key__c, snapshot);
+            }
+
+            List<Metadata_Snapshot__c> selectedSnapshots = new List<Metadata_Snapshot__c>();
+            if (snapshotsByKey.containsKey(request.sourceSnapshotKey)) {
+                selectedSnapshots.add(snapshotsByKey.get(request.sourceSnapshotKey));
+            }
+            if (snapshotsByKey.containsKey(request.targetSnapshotKey)) {
+                selectedSnapshots.add(snapshotsByKey.get(request.targetSnapshotKey));
+            }
+            return selectedSnapshots;
+        }
+
+        List<Metadata_Snapshot__c> newestFirst = [
+            SELECT Id, Snapshot_Key__c, Source_Org_Label__c, CreatedDate
+            FROM Metadata_Snapshot__c
+            WHERE Snapshot_Type__c = 'EnvironmentCompare'
+              AND Status__c = 'Completed'
+            ORDER BY CreatedDate DESC
+            LIMIT 2
+        ];
+        if (newestFirst.size() == 2) {
+            return new List<Metadata_Snapshot__c>{ newestFirst[1], newestFirst[0] };
+        }
+        return newestFirst;
+    }
+
+    private static Integer countFindings(
+        List<AiMetadataCopilotModels.DeploymentFindingRow> findings,
+        String findingType
+    ) {
+        Integer count = 0;
+        for (AiMetadataCopilotModels.DeploymentFindingRow finding : findings) {
+            if (finding.findingType == findingType) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private void persistAssessment(

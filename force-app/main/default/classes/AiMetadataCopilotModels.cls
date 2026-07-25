@@ -17,6 +17,8 @@ public with sharing class AiMetadataCopilotModels {
         @AuraEnabled public String userPrompt;
         @AuraEnabled public String queryText;
         @AuraEnabled public String queryType;
+        @AuraEnabled public List<String> sourceMetadataTypes;
+        @AuraEnabled public List<String> usageTypes;
     }
 
     public class MetadataSearchResponse {
@@ -28,6 +30,10 @@ public with sharing class AiMetadataCopilotModels {
         @AuraEnabled public String normalizedQueryType;
         @AuraEnabled public List<MatchedComponent> matchedComponents;
         @AuraEnabled public List<String> recommendations;
+        @AuraEnabled public NaturalLanguageInterpretation interpretation;
+        @AuraEnabled public List<FilterCount> sourceTypeCounts;
+        @AuraEnabled public List<FilterCount> usageTypeCounts;
+        @AuraEnabled public List<String> indexedCoverage;
     }
 
     public class ImpactAnalysisRequest {
@@ -46,6 +52,60 @@ public with sharing class AiMetadataCopilotModels {
         @AuraEnabled public List<String> regressionTestAreas;
         @AuraEnabled public List<MatchedComponent> impactedComponents;
         @AuraEnabled public Id assessmentId;
+        @AuraEnabled public NaturalLanguageInterpretation interpretation;
+        @AuraEnabled public DependencyGraphResponse dependencyGraph;
+    }
+
+    public class NaturalLanguageInterpretation {
+        @AuraEnabled public String intent;
+        @AuraEnabled public String queryType;
+        @AuraEnabled public String targetApiName;
+        @AuraEnabled public Decimal confidence;
+        @AuraEnabled public String reason;
+        @AuraEnabled public String resolutionMethod;
+        @AuraEnabled public Boolean isAmbiguous;
+        @AuraEnabled public List<String> alternatives;
+    }
+
+    public class FilterCount {
+        @AuraEnabled public String label;
+        @AuraEnabled public String value;
+        @AuraEnabled public Integer count;
+    }
+
+    public class DependencyGraphNode {
+        @AuraEnabled public String key;
+        @AuraEnabled public String label;
+        @AuraEnabled public String apiName;
+        @AuraEnabled public String metadataType;
+        @AuraEnabled public String category;
+        @AuraEnabled public Integer depth;
+        @AuraEnabled public String direction;
+        @AuraEnabled public String confidence;
+        @AuraEnabled public String evidence;
+        @AuraEnabled public Datetime lastIndexedOn;
+    }
+
+    public class DependencyGraphEdge {
+        @AuraEnabled public String key;
+        @AuraEnabled public String sourceKey;
+        @AuraEnabled public String targetKey;
+        @AuraEnabled public String relationshipType;
+        @AuraEnabled public String direction;
+        @AuraEnabled public String confidence;
+        @AuraEnabled public String evidence;
+    }
+
+    public class DependencyGraphResponse {
+        @AuraEnabled public String rootKey;
+        @AuraEnabled public String rootLabel;
+        @AuraEnabled public List<DependencyGraphNode> nodes;
+        @AuraEnabled public List<DependencyGraphEdge> edges;
+        @AuraEnabled public Integer directDependencyCount;
+        @AuraEnabled public Integer transitiveDependencyCount;
+        @AuraEnabled public Integer maxDepth;
+        @AuraEnabled public Boolean complete;
+        @AuraEnabled public List<String> warnings;
     }
 
     public class SecurityAuditRequest {
@@ -78,6 +138,8 @@ public with sharing class AiMetadataCopilotModels {
         @AuraEnabled public String sourceEnvironment;
         @AuraEnabled public String targetEnvironment;
         @AuraEnabled public String metadataScope;
+        @AuraEnabled public String sourceSnapshotKey;
+        @AuraEnabled public String targetSnapshotKey;
     }
 
     public class DeploymentFindingRow {
@@ -97,6 +159,33 @@ public with sharing class AiMetadataCopilotModels {
         @AuraEnabled public List<DeploymentFindingRow> findings;
         @AuraEnabled public List<String> rollbackChecklist;
         @AuraEnabled public List<String> testChecklist;
+        @AuraEnabled public String sourceSnapshotKey;
+        @AuraEnabled public String targetSnapshotKey;
+        @AuraEnabled public Integer addedCount;
+        @AuraEnabled public Integer removedCount;
+        @AuraEnabled public Integer changedCount;
+        @AuraEnabled public Boolean comparisonReady;
+    }
+
+    public class SnapshotSummary {
+        @AuraEnabled public String snapshotKey;
+        @AuraEnabled public String label;
+        @AuraEnabled public Integer componentCount;
+        @AuraEnabled public Datetime capturedOn;
+        @AuraEnabled public String status;
+    }
+
+    public class DeploymentWorkspaceState {
+        @AuraEnabled public Boolean snapshotStorageReady;
+        @AuraEnabled public String setupMessage;
+        @AuraEnabled public List<SnapshotSummary> snapshots;
+    }
+
+    public class DeploymentCaptureResponse {
+        @AuraEnabled public Boolean saved;
+        @AuraEnabled public String message;
+        @AuraEnabled public SnapshotSummary snapshot;
+        @AuraEnabled public DeploymentCompareResponse comparison;
     }
 
     public class DocumentationRequest {

@@ -29,6 +29,11 @@
             <lightning-tab label="Search" value="search">
                 <div class="panel">
                     <p class="panel-desc">Find where fields, objects, flows, or Apex are used across metadata.</p>
+                    <div class="feature-guide">
+                        <lightning-icon icon-name="utility:search" size="x-small" alternative-text="Search"></lightning-icon>
+                        <span><strong>Find references.</strong> Search shows the direct places this item is used.</span>
+                        <lightning-helptext content="Search returns direct indexed references. Impact expands the connections between them."></lightning-helptext>
+                    </div>
 
                     <lightning-radio-group
                         label="Search Mode"
@@ -58,6 +63,32 @@
                         </div>
                     </template>
 
+                    <div class="filter-panel">
+                        <div>
+                            <span class="filter-label">Source type</span>
+                            <lightning-checkbox-group
+                                data-field="searchSourceMetadataTypes"
+                                options={searchSourceFilterOptions}
+                                value={searchSourceMetadataTypes}
+                                onchange={handleSearchSourceTypeChange}
+                            ></lightning-checkbox-group>
+                        </div>
+                        <div>
+                            <span class="filter-label">Relationship</span>
+                            <lightning-checkbox-group
+                                data-field="searchUsageTypes"
+                                options={searchUsageFilterOptions}
+                                value={searchUsageTypes}
+                                onchange={handleSearchUsageTypeChange}
+                            ></lightning-checkbox-group>
+                        </div>
+                        <div class="coverage-note">
+                            <strong>Indexed coverage</strong>
+                            <span>{indexedCoverageText}</span>
+                            <small>Filters appear only for metadata currently in the catalog.</small>
+                        </div>
+                    </div>
+
                     <template if:false={isSearchSimple}>
                         <div class="input-row">
                             <lightning-textarea
@@ -78,6 +109,10 @@
                         </div>
                     </template>
 
+                    <template if:true={searchInterpretation}>
+                        <div class="interpretation-banner">{searchInterpretationText}</div>
+                    </template>
+
                     <template if:true={hasSearchResults}>
                         <lightning-datatable key-field="usageId" data={searchResponse.matchedComponents} columns={searchColumns} hide-checkbox-column></lightning-datatable>
                     </template>
@@ -93,6 +128,11 @@
             <lightning-tab label="Impact" value="impact">
                 <div class="panel">
                     <p class="panel-desc">Understand what breaks before changing metadata.</p>
+                    <div class="feature-guide feature-guide-impact">
+                        <lightning-icon icon-name="utility:hierarchy" size="x-small" alternative-text="Dependency graph"></lightning-icon>
+                        <span><strong>Explore connections.</strong> Impact starts at your target and expands the dependency chain.</span>
+                        <lightning-helptext content="Solid relationships are indexed evidence. Use the graph to inspect connected automation, code, and security items."></lightning-helptext>
+                    </div>
 
                     <lightning-radio-group
                         label="Impact Mode"
@@ -122,6 +162,14 @@
                         </div>
                     </template>
 
+                    <div class="graph-controls">
+                        <lightning-combobox label="Depth" value={impactDepth} options={impactDepthOptions} onchange={handleImpactDepthChange}></lightning-combobox>
+                        <lightning-combobox label="Direction" value={impactDirection} options={impactDirectionOptions} onchange={handleImpactDirectionChange}></lightning-combobox>
+                        <lightning-checkbox-group label="Metadata types" options={indexedMetadataTypes} value={impactMetadataTypes} onchange={handleImpactMetadataTypeChange}></lightning-checkbox-group>
+                        <lightning-input type="checkbox" label="Hide text matches" checked={hideLowConfidence} onchange={handleHideLowConfidenceChange}></lightning-input>
+                        <lightning-button label="Apply graph view" variant="neutral" onclick={handleApplyGraphSettings} disabled={isLoading}></lightning-button>
+                    </div>
+
                     <template if:false={isImpactSimple}>
                         <div class="input-row">
                             <lightning-textarea
@@ -142,8 +190,73 @@
                         </div>
                     </template>
 
-                    <template if:true={hasImpactResults}>
-                        <lightning-datatable key-field="usageId" data={impactResponse.impactedComponents} columns={searchColumns} hide-checkbox-column></lightning-datatable>
+                    <template if:true={impactInterpretation}>
+                        <div class="interpretation-banner">{impactInterpretationText}</div>
+                    </template>
+
+                    <template if:true={hasImpactGraph}>
+                        <div class="graph-summary">
+                            <span><strong>{impactGraph.directDependencyCount}</strong> direct</span>
+                            <span><strong>{impactGraph.transitiveDependencyCount}</strong> transitive</span>
+                            <span><strong>{impactGraph.edges.length}</strong> relationships</span>
+                        </div>
+                        <div class="graph-legend" aria-label="Graph legend">
+                            <span><i class="legend-line legend-solid"></i> Structured dependency</span>
+                            <span><i class="legend-line legend-dashed"></i> Indexed text match</span>
+                            <span><i class="legend-line legend-dotted"></i> Inferred</span>
+                        </div>
+                        <div class="graph-board">
+                            <template for:each={graphLevels} for:item="level">
+                                <section class="graph-level" key={level.depth}>
+                                    <span class="graph-level-label">{level.label}</span>
+                                    <div class="graph-node-list">
+                                        <template for:each={level.nodes} for:item="node">
+                                            <button class="graph-node" data-key={node.key} key={node.key} onclick={handleGraphNodeClick} title="Open dependency details">
+                                                <span class="graph-node-type">{node.category}</span>
+                                                <strong>{node.label}</strong>
+                                                <span>{node.metadataType} · {node.direction}</span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </section>
+                            </template>
+                        </div>
+                        <div class="graph-connections" aria-label="Dependency relationships">
+                            <span class="graph-connections-label">Relationships</span>
+                            <template for:each={graphEdges} for:item="edge">
+                                <button class="graph-edge" data-key={edge.sourceKey} key={edge.key} onclick={handleGraphNodeClick} title="Open the source node details">
+                                    <span>{edge.sourceLabel}</span>
+                                    <strong> {edge.relationshipType} -&gt; </strong>
+                                    <span>{edge.targetLabel}</span>
+                                </button>
+                            </template>
+                        </div>
+                        <template if:true={hasSelectedGraphNode}>
+                            <aside class="node-details">
+                                <div class="node-details-heading">
+                                    <div>
+                                        <span class="eyebrow">Selected dependency</span>
+                                        <h3>{selectedGraphNode.label}</h3>
+                                    </div>
+                                    <lightning-button-icon icon-name="utility:close" alternative-text="Close details" title="Close details" onclick={handleGraphNodeClick}></lightning-button-icon>
+                                </div>
+                                <dl class="node-detail-list">
+                                    <div><dt>API name</dt><dd>{selectedGraphNode.apiName}</dd></div>
+                                    <div><dt>Type</dt><dd>{selectedGraphNode.metadataType}</dd></div>
+                                    <div><dt>Category</dt><dd>{selectedGraphNode.category}</dd></div>
+                                    <div><dt>Direction</dt><dd>{selectedGraphNodeDirection}</dd></div>
+                                    <div><dt>Confidence</dt><dd>{selectedGraphNode.confidence}</dd></div>
+                                    <div><dt>Evidence</dt><dd>{selectedGraphNode.evidence}</dd></div>
+                                </dl>
+                                <div class="node-details-actions">
+                                    <lightning-button label="Open in Search" variant="neutral" onclick={handleOpenGraphNodeInSearch}></lightning-button>
+                                    <lightning-button label="Expand from here" variant="brand" onclick={handleExpandGraphNode}></lightning-button>
+                                </div>
+                            </aside>
+                        </template>
+                        <template if:true={impactGraph.warnings}>
+                            <div class="graph-warning">{impactGraph.warnings}</div>
+                        </template>
                     </template>
 
                     <template if:true={impactResponse}>
@@ -192,15 +305,52 @@
 
             <lightning-tab label="Deploy" value="deployment">
                 <div class="panel panel-cols">
-                    <p class="panel-desc full">Compare environments before deployment.</p>
-                    <lightning-input label="Source" data-field="sourceEnvironment" value={sourceEnvironment} onchange={handleSourceEnvChange}></lightning-input>
-                    <lightning-input label="Target" data-field="targetEnvironment" value={targetEnvironment} onchange={handleTargetEnvChange}></lightning-input>
-                    <lightning-button label="Compare" variant="brand" onclick={handleDeploymentCompare} disabled={isLoading} class="btn-action full"></lightning-button>
+                    <div class="deploy-intro full">
+                        <div>
+                            <p class="eyebrow">Release readiness</p>
+                            <h2>Compare a known baseline with the current org state</h2>
+                            <p class="panel-desc">Set a baseline once, make your metadata changes, then capture and compare the current state.</p>
+                        </div>
+                        <div class="deploy-status">{deploymentStateMessage}</div>
+                    </div>
+
+                    <lightning-input label="Baseline label" value={baselineLabel} onchange={handleBaselineLabelChange}></lightning-input>
+                    <lightning-input label="Current snapshot label" value={currentSnapshotLabel} onchange={handleCurrentSnapshotLabelChange}></lightning-input>
+                    <div class="deploy-actions full">
+                        <lightning-button label="Set baseline" variant="brand" onclick={handleSetBaseline} disabled={isLoading}></lightning-button>
+                        <lightning-button label="Capture current + compare" variant="brand-outline" onclick={handleCaptureCurrentAndCompare} disabled={isLoading}></lightning-button>
+                    </div>
+
+                    <template if:true={hasDeploymentSnapshots}>
+                        <div class="snapshot-picker">
+                            <lightning-combobox label="Baseline snapshot" value={selectedBaselineKey} options={deploymentSnapshotOptions} onchange={handleBaselineChange}></lightning-combobox>
+                            <lightning-combobox label="Current snapshot" value={selectedTargetKey} options={deploymentSnapshotOptions} onchange={handleTargetSnapshotChange}></lightning-combobox>
+                            <lightning-button label="Compare selected" variant="neutral" onclick={handleDeploymentCompare} disabled={isLoading} class="btn-action"></lightning-button>
+                        </div>
+                    </template>
+
+                    <template if:true={hasDeploymentSnapshots}>
+                        <div class="release-timeline full">
+                            <template for:each={deploymentSnapshots} for:item="snapshot">
+                                <div class="timeline-item" key={snapshot.snapshotKey}>
+                                    <span class="timeline-dot"></span>
+                                    <div>
+                                        <strong>{snapshot.label}</strong>
+                                        <span>{snapshot.componentCount} indexed components</span>
+                                        <small>{snapshot.capturedOn}</small>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
 
                     <template if:true={deploymentResponse}>
                         <div class="card full">
                             <span class="badge">{deploymentResponse.severity}</span>
                             <span>Readiness: <strong>{deploymentResponse.readinessScore}</strong></span>
+                            <span>Added: <strong>{deploymentResponse.addedCount}</strong></span>
+                            <span>Removed: <strong>{deploymentResponse.removedCount}</strong></span>
+                            <span>Changed: <strong>{deploymentResponse.changedCount}</strong></span>
                             <span class="card-summary">{deploymentResponse.summary}</span>
                         </div>
                     </template>

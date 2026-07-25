@@ -140,7 +140,18 @@ public with sharing class MetadataIndexerService {
     }
 
     private static String defaultStatus(String status) {
-        return String.isBlank(status) ? 'Active' : status;
+        if (String.isBlank(status)) {
+            return 'Active';
+        }
+
+        // Tooling API lifecycle values such as Draft are not valid values in
+        // the restricted Metadata_Item__c.Status__c picklist. Any source
+        // lifecycle that is not one of our index statuses remains searchable.
+        if (status == 'Active' || status == 'Inactive') {
+            return status;
+        }
+
+        return 'Active';
     }
 
     private static String joinErrors(Database.Error[] errors) {

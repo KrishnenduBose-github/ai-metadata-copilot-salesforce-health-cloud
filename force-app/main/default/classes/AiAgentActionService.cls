@@ -47,13 +47,25 @@ public with sharing class AiAgentActionService {
         AiMetadataCopilotModels.MetadataSearchRequest request
     ) {
         MetadataLogger.info('AiAgentActionService', 'searchMetadata invoked: queryText=' + request.queryText + ', userPrompt=' + request.userPrompt);
+        AiMetadataCopilotModels.NaturalLanguageInterpretation interpretation;
 
         if (String.isBlank(request.queryText)) {
             if (String.isBlank(request.userPrompt)) {
                 return emptySearchResponse('No search input provided.');
             }
             guardrailService.validateReadOnlyPrompt(request.userPrompt);
-            request = normalizationService.normalizeSearchRequest(request.userPrompt);
+            interpretation = new NaturalLanguageResolutionService().resolve(request.userPrompt, 'Search');
+            if (interpretation.isAmbiguous == true) {
+                return emptySearchResponse(
+                    'More than one metadata item matched your question. Choose one of the suggested targets and try again.',
+                    interpretation
+                );
+            }
+            if (String.isBlank(interpretation.targetApiName)) {
+                return emptySearchResponse(interpretation.reason, interpretation);
+            }
+            request.queryText = interpretation.targetApiName;
+            request.queryType = interpretation.queryType;
         } else {
             guardrailService.validateReadOnlyPrompt(request.queryText);
         }
@@ -63,9 +75,18 @@ public with sharing class AiAgentActionService {
             return emptySearchResponse('Could not identify a metadata token in your query. Try an explicit API name like Account.Industry or Patient_Status__c.');
         }
 
-        List<MetadataSearchService.SearchResultRow> rows = 'ObjectUsage' == request.queryType
-            ? metadataSearchService.searchObjectUsage(request.queryText)
-            : metadataSearchService.searchFieldUsage(request.queryText);
+        MetadataSearchService.SearchFilterResult searchResult = 'ObjectUsage' == request.queryType
+            ? metadataSearchService.searchObjectUsageDetailed(
+                request.queryText,
+                request.sourceMetadataTypes,
+                request.usageTypes
+            )
+            : metadataSearchService.searchFieldUsageDetailed(
+                request.queryText,
+                request.sourceMetadataTypes,
+                request.usageTypes
+            );
+        List<MetadataSearchService.SearchResultRow> rows = searchResult.rows;
         List<AiMetadataCopilotModels.MatchedComponent> components =
             promptGroundingService.buildGroundedComponents(rows);
 
@@ -82,6 +103,10 @@ public with sharing class AiAgentActionService {
             request.queryType,
             rows.size()
         );
+        response.interpretation = interpretation;
+        response.sourceTypeCounts = toFilterCounts(searchResult.sourceTypeCounts);
+        response.usageTypeCounts = toFilterCounts(searchResult.usageTypeCounts);
+        response.indexedCoverage = new List<String>{ 'ApexClass', 'Flow', 'CustomField' };
 
         MetadataLogger.info('AiAgentActionService', 'searchMetadata completed: ' + rows.size() + ' rows for ' + request.queryText);
         return response;
@@ -102,12 +127,24 @@ public with sharing class AiAgentActionService {
         AiMetadataCopilotModels.ImpactAnalysisRequest request
     ) {
         MetadataLogger.info('AiAgentActionService', 'analyzeImpact invoked: queryText=' + request.queryText + ', userPrompt=' + request.userPrompt);
+        AiMetadataCopilotModels.NaturalLanguageInterpretation interpretation;
 
         if (String.isBlank(request.queryText)) {
             if (String.isBlank(request.userPrompt)) {
                 return emptyImpactResponse('No impact analysis input provided.');
             }
-            request = normalizationService.normalizeImpactRequest(request.userPrompt);
+            interpretation = new NaturalLanguageResolutionService().resolve(request.userPrompt, 'Impact');
+            if (interpretation.isAmbiguous == true) {
+                return emptyImpactResponse(
+                    'More than one metadata item matched your question. Choose one of the suggested targets and try again.',
+                    interpretation
+                );
+            }
+            if (String.isBlank(interpretation.targetApiName)) {
+                return emptyImpactResponse(interpretation.reason, interpretation);
+            }
+            request.queryText = interpretation.targetApiName;
+            request.queryType = interpretation.queryType;
         }
 
         if (String.isBlank(request.queryText)) {
@@ -139,12 +176,28 @@ public with sharing class AiAgentActionService {
             request.queryText,
             impactedComponents
         );
+        response.interpretation = interpretation;
+        response.dependencyGraph = new DependencyGraphService().buildForQuery(
+            request.queryText,
+            request.queryType,
+            2,
+            'Both',
+            null,
+            false
+        );
 
         MetadataLogger.info('AiAgentActionService', 'analyzeImpact completed: ' + rows.size() + ' rows for ' + request.queryText);
         return response;
     }
 
     private static AiMetadataCopilotModels.MetadataSearchResponse emptySearchResponse(String message) {
+        return emptySearchResponse(message, null);
+    }
+
+    private static AiMetadataCopilotModels.MetadataSearchResponse emptySearchResponse(
+        String message,
+        AiMetadataCopilotModels.NaturalLanguageInterpretation interpretation
+    ) {
         AiMetadataCopilotModels.MetadataSearchResponse empty =
             new AiMetadataCopilotModels.MetadataSearchResponse();
         empty.normalizedQueryType = 'FieldUsage';
@@ -158,10 +211,33 @@ public with sharing class AiAgentActionService {
             'Search by Object.Field format (e.g. Account.Industry).',
             'Refresh metadata before searching if the org recently changed.'
         };
+        empty.sourceTypeCounts = new List<AiMetadataCopilotModels.FilterCount>();
+        empty.usageTypeCounts = new List<AiMetadataCopilotModels.FilterCount>();
+        empty.indexedCoverage = new List<String>{ 'ApexClass', 'Flow', 'CustomField' };
+        empty.interpretation = interpretation;
         return empty;
     }
 
+    private static List<AiMetadataCopilotModels.FilterCount> toFilterCounts(Map<String, Integer> counts) {
+        List<AiMetadataCopilotModels.FilterCount> result = new List<AiMetadataCopilotModels.FilterCount>();
+        for (String value : counts.keySet()) {
+            AiMetadataCopilotModels.FilterCount count = new AiMetadataCopilotModels.FilterCount();
+            count.value = value;
+            count.label = value;
+            count.count = counts.get(value);
+            result.add(count);
+        }
+        return result;
+    }
+
     private static AiMetadataCopilotModels.ImpactAnalysisResponse emptyImpactResponse(String message) {
+        return emptyImpactResponse(message, null);
+    }
+
+    private static AiMetadataCopilotModels.ImpactAnalysisResponse emptyImpactResponse(
+        String message,
+        AiMetadataCopilotModels.NaturalLanguageInterpretation interpretation
+    ) {
         AiMetadataCopilotModels.ImpactAnalysisResponse empty =
             new AiMetadataCopilotModels.ImpactAnalysisResponse();
         empty.summary = message;
@@ -171,6 +247,7 @@ public with sharing class AiAgentActionService {
         empty.impactedComponents = new List<AiMetadataCopilotModels.MatchedComponent>();
         empty.deploymentCautions = new List<String>();
         empty.regressionTestAreas = new List<String>();
+        empty.interpretation = interpretation;
         return empty;
     }
 

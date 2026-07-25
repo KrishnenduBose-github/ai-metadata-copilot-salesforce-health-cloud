@@ -39,6 +39,22 @@ public with sharing class AiMetadataCopilotController {
     }
 
     @AuraEnabled
+    public static AiMetadataCopilotModels.MetadataSearchResponse searchMetadataDirectFiltered(
+        String queryText,
+        String queryType,
+        List<String> sourceMetadataTypes,
+        List<String> usageTypes
+    ) {
+        AiMetadataCopilotModels.MetadataSearchRequest request =
+            new AiMetadataCopilotModels.MetadataSearchRequest();
+        request.queryText = trimToNull(queryText);
+        request.queryType = trimToNull(queryType);
+        request.sourceMetadataTypes = sourceMetadataTypes;
+        request.usageTypes = usageTypes;
+        return new AiAgentActionService().searchMetadata(request);
+    }
+
+    @AuraEnabled
     public static AiMetadataCopilotModels.ImpactAnalysisResponse analyzeImpact(
         AiMetadataCopilotModels.ImpactAnalysisRequest request
     ) {
@@ -55,6 +71,23 @@ public with sharing class AiMetadataCopilotController {
         request.queryText = trimToNull(queryText);
         request.queryType = trimToNull(queryType);
         return new AiAgentActionService().analyzeImpact(request);
+    }
+
+    @AuraEnabled
+    public static AiMetadataCopilotModels.DependencyGraphResponse getDependencyGraph(
+        String rootKey,
+        Integer depth,
+        String direction,
+        List<String> metadataTypes,
+        Boolean hideLowConfidence
+    ) {
+        return new DependencyGraphService().build(
+            trimToNull(rootKey),
+            depth,
+            trimToNull(direction),
+            metadataTypes,
+            hideLowConfidence
+        );
     }
 
     @AuraEnabled
@@ -79,6 +112,31 @@ public with sharing class AiMetadataCopilotController {
         AiMetadataCopilotModels.DeploymentCompareRequest request
     ) {
         return new AiAgentActionService().compareEnvironments(request);
+    }
+
+    @AuraEnabled
+    public static AiMetadataCopilotModels.DeploymentWorkspaceState getDeploymentWorkspaceState() {
+        return new DeploymentWorkspaceService().getState();
+    }
+
+    @AuraEnabled
+    public static AiMetadataCopilotModels.DeploymentCaptureResponse captureDeploymentSnapshot(
+        String label
+    ) {
+        return new DeploymentWorkspaceService().captureSnapshot(trimToNull(label));
+    }
+
+    @AuraEnabled
+    public static AiMetadataCopilotModels.DeploymentCaptureResponse captureAndCompareDeployment(
+        String sourceSnapshotKey,
+        String currentLabel,
+        String targetEnvironment
+    ) {
+        return new DeploymentWorkspaceService().captureAndCompare(
+            trimToNull(sourceSnapshotKey),
+            trimToNull(currentLabel),
+            trimToNull(targetEnvironment)
+        );
     }
 
     @AuraEnabled

@@ -89,6 +89,27 @@ private class AiMetadataCopilotControllerTest {
     }
 
     @IsTest
+    static void searchMetadataDirectFilteredReturnsOnlyRequestedSourceType() {
+        Test.startTest();
+        AiMetadataCopilotModels.MetadataSearchResponse response =
+            AiMetadataCopilotController.searchMetadataDirectFiltered(
+                'Account.CustomerPriority__c',
+                'FieldUsage',
+                new List<String>{ 'ApexClass' },
+                new List<String>{ 'UsesField' }
+            );
+        Test.stopTest();
+
+        System.assert(response.matchedComponents.size() > 0, 'Expected filtered Apex usage results.');
+        for (AiMetadataCopilotModels.MatchedComponent component : response.matchedComponents) {
+            System.assertEquals('ApexClass', component.metadataType);
+            System.assertEquals('UsesField', component.usageType);
+        }
+        System.assert(response.sourceTypeCounts.size() > 0, 'Expected source type facet counts.');
+        System.assert(response.usageTypeCounts.size() > 0, 'Expected usage type facet counts.');
+    }
+
+    @IsTest
     static void searchMetadataDirectQualifiedInputIgnoresSameFieldOnOtherObject() {
         Metadata_Item__c apexItem = [
             SELECT Id, Metadata_Key__c
@@ -262,6 +283,46 @@ private class AiMetadataCopilotControllerTest {
     }
 
     @IsTest
+    static void impactReturnsExpandableDependencyGraph() {
+        Test.startTest();
+        AiMetadataCopilotModels.ImpactAnalysisResponse response =
+            AiMetadataCopilotController.analyzeImpactDirect(
+                'Account.CustomerPriority__c',
+                'FieldUsage'
+            );
+        Test.stopTest();
+
+        System.assertNotEquals(null, response.dependencyGraph);
+        System.assertEquals('CustomField:Account.CustomerPriority__c', response.dependencyGraph.rootKey);
+        System.assert(response.dependencyGraph.nodes.size() > 1, 'Expected root and dependent nodes.');
+        System.assert(response.dependencyGraph.edges.size() > 0, 'Expected dependency graph edges.');
+        System.assert(response.dependencyGraph.directDependencyCount > 0, 'Expected direct dependency count.');
+    }
+
+    @IsTest
+    static void dependencyGraphStopsAtConfiguredDepthAndDeduplicatesEdges() {
+        Test.startTest();
+        AiMetadataCopilotModels.DependencyGraphResponse graph =
+            AiMetadataCopilotController.getDependencyGraph(
+                'CustomField:Account.CustomerPriority__c',
+                3,
+                'Both',
+                null,
+                false
+            );
+        Test.stopTest();
+
+        Set<String> edgeKeys = new Set<String>();
+        for (AiMetadataCopilotModels.DependencyGraphNode node : graph.nodes) {
+            System.assert(node.depth <= 3, 'Graph traversal must respect the maximum depth.');
+        }
+        for (AiMetadataCopilotModels.DependencyGraphEdge edge : graph.edges) {
+            System.assert(!edgeKeys.contains(edge.key), 'Graph edges must be unique.');
+            edgeKeys.add(edge.key);
+        }
+    }
+
+    @IsTest
     static void analyzeImpactDirectTrimsVisibleFieldInput() {
         Test.startTest();
         AiMetadataCopilotModels.ImpactAnalysisResponse response =
@@ -333,6 +394,91 @@ private class AiMetadataCopilotControllerTest {
         System.assert(status.usageRecordCount >= 0, 'usageRecordCount should be non-negative.');
         System.assertNotEquals(null, status.warnings);
         System.assertNotEquals(null, status.recommendations);
+    }
+
+    @IsTest
+    static void indexerNormalizesToolingLifecycleStatuses() {
+        MetadataExtractionService.ExtractedMetadataItem flowItem =
+            new MetadataExtractionService.ExtractedMetadataItem();
+        flowItem.metadataType = 'Flow';
+        flowItem.metadataKey = 'Flow:Draft Flow Regression ' + System.now().getTime();
+        flowItem.apiName = 'Draft Flow Regression';
+        flowItem.developerName = flowItem.apiName;
+        flowItem.sourceRecordId = '301000000000000AAA';
+        flowItem.status = 'Draft';
+
+        Test.startTest();
+        MetadataIndexerService.IndexingResult result =
+            new MetadataIndexerService().indexMetadataItems(
+                new List<MetadataExtractionService.ExtractedMetadataItem>{flowItem}
+            );
+        Test.stopTest();
+
+        System.assertEquals(1, result.successCount, 'Draft Flow should still be indexed.');
+        System.assertEquals(0, result.errorCount, 'Unsupported Tooling status should not cause DML failure.');
+
+        Metadata_Item__c indexedFlow = [
+            SELECT Status__c
+            FROM Metadata_Item__c
+            WHERE Metadata_Key__c = :flowItem.metadataKey
+            LIMIT 1
+        ];
+        System.assertEquals('Active', indexedFlow.Status__c);
+    }
+
+    @IsTest
+    static void indexerHandlesBlankAndInvalidItemsWithoutAbortingBatch() {
+        MetadataExtractionService.ExtractedMetadataItem blankKeyItem =
+            new MetadataExtractionService.ExtractedMetadataItem();
+        blankKeyItem.status = null;
+
+        MetadataExtractionService.ExtractedMetadataItem fallbackNameItem =
+            new MetadataExtractionService.ExtractedMetadataItem();
+        fallbackNameItem.metadataType = 'Flow';
+        fallbackNameItem.metadataKey = 'Flow:Indexer Fallback Name ' + System.now().getTime();
+        fallbackNameItem.status = null;
+
+        MetadataExtractionService.ExtractedMetadataItem activeItem =
+            new MetadataExtractionService.ExtractedMetadataItem();
+        activeItem.metadataType = 'Flow';
+        activeItem.metadataKey = 'Flow:Indexer Active Status ' + System.now().getTime();
+        activeItem.apiName = 'Indexer Active Status';
+        activeItem.status = 'Active';
+
+        Test.startTest();
+        MetadataIndexerService.IndexingResult result =
+            new MetadataIndexerService().indexMetadataItems(
+                new List<MetadataExtractionService.ExtractedMetadataItem>{
+                    null,
+                    blankKeyItem,
+                    fallbackNameItem,
+                    activeItem
+                }
+            );
+        MetadataIndexerService.IndexingResult emptyResult =
+            new MetadataIndexerService().indexMetadataItems(
+                new List<MetadataExtractionService.ExtractedMetadataItem>()
+            );
+        Test.stopTest();
+
+        System.assertEquals(4, result.totalItems);
+        System.assertEquals(2, result.successCount);
+        System.assertEquals(2, result.errorCount);
+        System.assertEquals(2, result.skippedCount);
+        System.assertEquals(0, emptyResult.totalItems);
+    }
+
+    @IsTest
+    static void indexerCanIndexAllSupportedMetadata() {
+        Test.setMock(HttpCalloutMock.class, new ToolingApiMock());
+
+        Test.startTest();
+        MetadataIndexerService.IndexingResult result =
+            new MetadataIndexerService().indexAllSupportedMetadata();
+        Test.stopTest();
+
+        System.assert(result.totalItems > 0, 'Expected supported metadata to be indexed.');
+        System.assertEquals(0, result.errorCount, 'Mock metadata should index without errors.');
     }
 
     @IsTest
@@ -459,6 +605,103 @@ private class AiMetadataCopilotControllerTest {
         System.assert(response.findings.size() > 0, 'Expected snapshot comparison findings.');
         System.assert(response.rollbackChecklist.size() > 0, 'Expected rollback guidance.');
         System.assert(response.testChecklist.size() > 0, 'Expected test guidance.');
+    }
+
+    @IsTest
+    static void compareEnvironmentsHonorsExplicitSnapshotKeys() {
+        List<Metadata_Snapshot__c> snapshots = [
+            SELECT Snapshot_Key__c
+            FROM Metadata_Snapshot__c
+            WHERE Snapshot_Type__c = 'EnvironmentCompare'
+            ORDER BY Completed_On__c ASC
+            LIMIT 2
+        ];
+        AiMetadataCopilotModels.DeploymentCompareRequest request =
+            MetadataCopilotTestDataFactory.deploymentRequest();
+        request.sourceSnapshotKey = snapshots[0].Snapshot_Key__c;
+        request.targetSnapshotKey = snapshots[1].Snapshot_Key__c;
+
+        Test.startTest();
+        AiMetadataCopilotModels.DeploymentCompareResponse response =
+            AiMetadataCopilotController.compareEnvironments(request);
+        Test.stopTest();
+
+        System.assertEquals(request.sourceSnapshotKey, response.sourceSnapshotKey);
+        System.assertEquals(request.targetSnapshotKey, response.targetSnapshotKey);
+        System.assertEquals(true, response.comparisonReady);
+        System.assert(response.changedCount > 0, 'Expected the explicitly selected snapshots to be compared.');
+    }
+
+    @IsTest
+    static void deploymentWorkspaceListsCompletedSnapshots() {
+        Test.startTest();
+        AiMetadataCopilotModels.DeploymentWorkspaceState state =
+            AiMetadataCopilotController.getDeploymentWorkspaceState();
+        Test.stopTest();
+
+        System.assertEquals(true, state.snapshotStorageReady);
+        System.assert(state.snapshots.size() >= 2, 'Expected completed environment snapshots.');
+    }
+
+    @IsTest
+    static void deploymentWorkspaceCapturesSnapshotAndComparesItToBaseline() {
+        Metadata_Snapshot__c baseline = [
+            SELECT Snapshot_Key__c
+            FROM Metadata_Snapshot__c
+            WHERE Snapshot_Type__c = 'EnvironmentCompare'
+            ORDER BY Completed_On__c ASC
+            LIMIT 1
+        ];
+        Test.setMock(HttpCalloutMock.class, new ToolingApiMock());
+
+        Test.startTest();
+        AiMetadataCopilotModels.DeploymentCaptureResponse response =
+            AiMetadataCopilotController.captureAndCompareDeployment(
+                baseline.Snapshot_Key__c,
+                'Current release candidate',
+                'Current org'
+            );
+        Test.stopTest();
+
+        System.assertEquals(true, response.saved);
+        System.assertNotEquals(null, response.snapshot);
+        System.assertNotEquals(null, response.comparison);
+        System.assertEquals(true, response.comparison.comparisonReady);
+        System.assertEquals(baseline.Snapshot_Key__c, response.comparison.sourceSnapshotKey);
+    }
+
+    @IsTest
+    static void naturalLanguageResolverMapsAFieldLabelFromCatalog() {
+        Test.startTest();
+        AiMetadataCopilotModels.NaturalLanguageInterpretation interpretation =
+            new NaturalLanguageResolutionService().resolve(
+                'Where is Customer Priority used?',
+                'Search'
+            );
+        Test.stopTest();
+
+        System.assertEquals('Account.CustomerPriority__c', interpretation.targetApiName);
+        System.assertEquals('FieldUsage', interpretation.queryType);
+        System.assertEquals(false, interpretation.isAmbiguous);
+        System.assertEquals('CatalogFallback', interpretation.resolutionMethod);
+    }
+
+    @IsTest
+    static void naturalLanguageInvocableActionReturnsGroundedTarget() {
+        MetadataNaturalLanguageAction.Request request = new MetadataNaturalLanguageAction.Request();
+        request.userPrompt = 'Where is Customer Priority used?';
+        request.intent = 'Search';
+
+        Test.startTest();
+        List<MetadataNaturalLanguageAction.Response> responses =
+            MetadataNaturalLanguageAction.resolve(
+                new List<MetadataNaturalLanguageAction.Request>{ request }
+            );
+        Test.stopTest();
+
+        System.assertEquals(1, responses.size());
+        System.assertEquals('Account.CustomerPriority__c', responses[0].targetApiName);
+        System.assertEquals('FieldUsage', responses[0].queryType);
     }
 
     @IsTest
